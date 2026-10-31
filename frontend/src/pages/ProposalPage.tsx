@@ -36,7 +36,7 @@ export function ProposalPage({ id }: { id: number }) {
   const llm = p.llmCalls.at(-1);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div>
         <div className="flex flex-wrap items-center gap-2">
           <Badge value={p.riskLevel} />
@@ -44,8 +44,8 @@ export function ProposalPage({ id }: { id: number }) {
           <Badge value={p.validationStatus} />
           <span className="font-mono text-xs text-ink-500">#{p.id} · {p.generatedBy} · confidence {Number(p.confidence).toFixed(2)}</span>
         </div>
-        <h1 className="mt-2 text-xl font-semibold">{p.title}</h1>
-        <p className="mt-1 text-sm text-ink-300">{p.summary}</p>
+        <h1 className="mt-3 text-3xl font-extrabold tracking-tight text-ink-100">{p.title}</h1>
+        <p className="mt-2 max-w-3xl text-[15px] leading-relaxed text-ink-300">{p.summary}</p>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-5">
@@ -88,7 +88,7 @@ export function ProposalPage({ id }: { id: number }) {
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                   placeholder="Comment (stored in the audit trail)"
-                  className="h-20 w-full rounded border border-ink-700 bg-ink-950 p-2 text-sm outline-none focus:border-ink-500"
+                  className="h-24 w-full rounded-xl border border-ink-700 bg-ink-950 p-3 text-sm outline-none focus:border-signal"
                 />
                 <div className="flex gap-2">
                   <Button onClick={() => decide('approve')} disabled={busy}>Approve and open PR</Button>

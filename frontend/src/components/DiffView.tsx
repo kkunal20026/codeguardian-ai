@@ -3,12 +3,12 @@ export function DiffView({ diff }: { diff: string }) {
     return <div className="text-sm text-ink-500">No patch. The agent could not produce a safe change.</div>;
   }
   return (
-    <pre className="overflow-x-auto rounded bg-ink-950 py-2 font-mono text-[12px] leading-5">
+    <pre className="overflow-x-auto rounded-xl border border-ink-700 bg-ink-950 py-3 font-mono text-[12px] leading-5">
       {diff.split('\n').map((line, i) => {
         const cls = line.startsWith('+++') || line.startsWith('---')
           ? 'text-ink-300'
           : line.startsWith('@@')
-            ? 'text-sky-300'
+            ? 'text-info'
             : line.startsWith('+')
               ? 'bg-signal/10 text-signal'
               : line.startsWith('-')
