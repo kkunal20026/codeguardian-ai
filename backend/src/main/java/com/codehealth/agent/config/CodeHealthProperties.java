@@ -50,10 +50,28 @@ public record CodeHealthProperties(
                          List<String> highRiskPaths) {
     }
 
+    /**
+     * @param isolation    how local test runs are isolated: "docker" (default) runs them in a throwaway container
+     *                     with no secrets, no host files and capped resources; "env" runs them on the host with
+     *                     the backend's secrets removed from the environment (weaker: files are still readable).
+     * @param sandboxImage image for docker isolation; must contain the build tool used by testCommand
+     * @param sandboxNetwork docker network for test runs; "none" blocks all traffic but then dependencies must
+     *                     already be in the cache volume
+     * @param sandboxCacheVolume named docker volume mounted as the Maven repository, so dependencies are
+     *                     downloaded once; never the host's own ~/.m2
+     */
     public record Validation(@DefaultValue("static") String mode, String repoPath, String testCommand,
-                             @DefaultValue("600") int timeoutSeconds) {
+                             @DefaultValue("600") int timeoutSeconds,
+                             @DefaultValue("docker") String isolation,
+                             @DefaultValue("maven:3.9-eclipse-temurin-25") String sandboxImage,
+                             @DefaultValue("bridge") String sandboxNetwork,
+                             @DefaultValue("codehealth-m2-cache") String sandboxCacheVolume) {
         public boolean isLocal() {
             return "local".equalsIgnoreCase(mode);
+        }
+
+        public boolean isDockerIsolation() {
+            return !"env".equalsIgnoreCase(isolation);
         }
     }
 

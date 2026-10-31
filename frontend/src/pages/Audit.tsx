@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { api } from '../api';
 import type { VerificationResult } from '../types';
 import { useAsync } from '../useAsync';
-import { Button, ErrorBox, Panel, when } from '../components/ui';
+import { Icon } from '../components/icons';
+import { Button, ErrorBox, PageHeader, Panel, th, when } from '../components/ui';
 
 export function Audit() {
   const { data, error } = useAsync(() => api.audit(200));
@@ -19,18 +20,14 @@ export function Audit() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">Audit trail</h1>
-          <p className="mt-1 text-sm text-ink-300">Append-only, SHA-256 hash-chained, stored in SQL Server.</p>
-        </div>
-        <Button variant="ghost" onClick={verify}>Verify chain</Button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader eyebrow="Audit" title="Audit trail"
+                  subtitle="Every decision, prompt and model output. Append-only, SHA-256 hash-chained, and protected by database triggers in SQL Server."
+                  action={<Button variant="ghost" onClick={verify}><Icon.Chain className="h-4 w-4" /> Verify chain</Button>} />
 
       {checkError && <ErrorBox message={checkError} />}
       {check && (
-        <div className={`rounded border px-3 py-2 text-sm ${check.valid
+        <div className={`rounded-xl border px-4 py-3 text-sm font-medium ${check.valid
           ? 'border-signal/40 bg-signal/10 text-signal' : 'border-alarm/40 bg-alarm/10 text-alarm'}`}>
           {check.valid
             ? `Chain intact: ${check.entriesChecked} entries recomputed from genesis.`
@@ -41,25 +38,25 @@ export function Audit() {
 
       <Panel title="Latest events">
         <table className="w-full text-left text-sm">
-          <thead className="text-xs text-ink-500">
+          <thead>
             <tr>
-              <th className="pb-2 font-normal">Seq</th>
-              <th className="pb-2 font-normal">Event</th>
-              <th className="pb-2 font-normal">Entity</th>
-              <th className="pb-2 font-normal">Actor</th>
-              <th className="pb-2 font-normal">Time</th>
-              <th className="pb-2 font-normal">Hash</th>
+              <th className={th}>Seq</th>
+              <th className={th}>Event</th>
+              <th className={th}>Entity</th>
+              <th className={th}>Actor</th>
+              <th className={th}>Time</th>
+              <th className={th}>Hash</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-ink-700">
             {data?.map((e) => (
               <tr key={e.seq} title={e.payloadJson}>
-                <td className="tabular py-1.5 font-mono text-xs text-ink-500">{e.seq}</td>
-                <td className="py-1.5 font-mono text-xs">{e.eventType}</td>
-                <td className="py-1.5 font-mono text-xs text-ink-300">{e.entityType}:{e.entityId}</td>
-                <td className="py-1.5 font-mono text-xs">{e.actor}</td>
-                <td className="py-1.5 text-xs text-ink-300">{when(e.eventTime)}</td>
-                <td className="py-1.5 font-mono text-xs text-ink-500">{e.contentHash.slice(0, 12)}…</td>
+                <td className="tabular py-2.5 font-mono text-xs text-ink-500">{e.seq}</td>
+                <td className="py-2.5"><span className="rounded-md bg-ink-800 px-2 py-0.5 font-mono text-xs font-medium text-ink-100">{e.eventType}</span></td>
+                <td className="py-2.5 font-mono text-xs text-ink-300">{e.entityType}:{e.entityId}</td>
+                <td className="py-2.5 font-mono text-xs">{e.actor}</td>
+                <td className="py-2.5 text-xs text-ink-300">{when(e.eventTime)}</td>
+                <td className="py-2.5 font-mono text-xs text-ink-500">{e.contentHash.slice(0, 12)}…</td>
               </tr>
             ))}
           </tbody>

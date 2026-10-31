@@ -40,7 +40,11 @@ proposal waits for your approval.
 1. Run the backend on the host so validation can execute Maven tests:
    `.\scripts\run-backend-local.ps1` (or `-Profiles "demo,openai"` with `AI_API_KEY` in `.env`).
 2. Produce real pre-fix data: `cd demo-repo; .\scripts\run-ci-locally.ps1 -Runs 20`.
-3. Run an agent cycle. With local validation the patch is applied in a temp copy and the test is run 5 times;
+3. Run an agent cycle. With local validation the patch is applied in a temp copy and the test is run 5 times
+   inside a throwaway Docker container (`VALIDATION_ISOLATION=docker`, the default) that gets no secrets, no host
+   folders and capped CPU, memory and processes. The first run downloads Maven dependencies into the
+   `codehealth-m2-cache` volume. Without Docker, `VALIDATION_ISOLATION=env` runs on the host with secrets removed
+   from the environment;
    five green runs make it LOW risk, and the agent opens the PR itself (or records a DRY_RUN if GitHub is not
    configured).
 4. Apply the patch (merge the PR, or `git apply`), then `.\scripts\run-ci-locally.ps1 -Runs 20` again.

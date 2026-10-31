@@ -214,4 +214,4 @@ and the fallback is counted in `codehealth.llm.fallback`.
 | Retries | Exponential backoff with jitter, 4 attempts, no retry on 4xx |
 | Concurrency | Optimistic locking on findings and proposals; one agent cycle at a time |
 | Observability | ECS JSON logs with correlation id, Prometheus metrics, health probes |
-| Security | Keycloak JWT, method security, approver from token, CORS allow-list, XXE-safe XML, path traversal checks on patches |
+| Security | Keycloak JWT, method security, approver from token, CORS allow-list, XXE-safe XML, path traversal checks on patches, HIGH risk can never be approved into a PR, model-written tests run in a locked-down container without secrets |
