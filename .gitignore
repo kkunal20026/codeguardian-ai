@@ -1,0 +1,9 @@
+.env
+target/
+node_modules/
+dist/
+.idea/
+*.iml
+.vscode/
+demo-repo/target/
+screenshots/out/
