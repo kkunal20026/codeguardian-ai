@@ -22,7 +22,8 @@ import java.util.function.Supplier;
 /**
  * Opens a pull request through the GitHub REST API only (no local git, no push credentials on disk):
  * create branch from base, write each patched file on the branch, open the PR, label it.
- * Every step is safe to repeat, which together with the execution idempotency key makes retries harmless.
+ * Every step is safe to repeat (a file already patched on the branch is not written again), which together
+ * with the execution idempotency key makes retries harmless.
  */
 @Component
 public class GitHubClient {
@@ -61,12 +62,13 @@ public class GitHubClient {
         createBranch(attempts, repo, branch, baseSha);
 
         for (UnifiedDiff.FilePatch patch : UnifiedDiff.parse(patchDiff)) {
-            ContentFile current = call(attempts, "github.get-content", () -> client.get()
-                    .uri(contentsUri(repo, patch.path()) + "?ref={ref}", branch)
-                    .retrieve().body(ContentFile.class));
-            String original = new String(Base64.getMimeDecoder().decode(current.content()), StandardCharsets.UTF_8);
-            String patched = UnifiedDiff.apply(original, patch);
-            if (patched.equals(original)) {
+            String original = decode(getContent(attempts, repo, patch.path(), baseSha));
+            ContentFile onBranch = getContent(attempts, repo, patch.path(), branch);
+            String branchText = decode(onBranch);
+            String patched = target(original, branchText, patch, branch);
+            if (patched == null) {
+                log.info("{} on {} already has the patch (earlier attempt), not writing it again", patch.path(),
+                        branch);
                 continue;
             }
             call(attempts, "github.put-content", () -> client.put()
@@ -74,7 +76,7 @@ public class GitHubClient {
                     .body(Map.of(
                             "message", title,
                             "content", Base64.getEncoder().encodeToString(patched.getBytes(StandardCharsets.UTF_8)),
-                            "sha", current.sha(),
+                            "sha", onBranch.sha(),
                             "branch", branch))
                     .retrieve().toBodilessEntity());
         }
@@ -90,9 +92,14 @@ public class GitHubClient {
                 throw ex;
             }
             // 422: a PR for this branch already exists (earlier attempt succeeded). Reuse it.
-            pr = call(attempts, "github.find-pr", () -> client.get()
+            PullRequestResponse[] open = call(attempts, "github.find-pr", () -> client.get()
                     .uri(repo + "/pulls?head={head}&state=open", config.owner() + ":" + branch)
-                    .retrieve().body(PullRequestResponse[].class))[0];
+                    .retrieve().body(PullRequestResponse[].class));
+            if (open == null || open.length == 0) {
+                throw new IllegalStateException("GitHub refused to create a PR for " + branch
+                        + " and no open PR exists for it (closed or merged earlier?): " + ex.getResponseBodyAsString());
+            }
+            pr = open[0];
         }
 
         PullRequestResponse created = pr;
@@ -104,6 +111,41 @@ public class GitHubClient {
         }
         log.info("Pull request #{} ready: {}", created.number(), created.htmlUrl());
         return new PullRequest(created.number(), created.htmlUrl(), attempts[0]);
+    }
+
+    /**
+     * Decides what the file on the branch must become. Returns null when the branch already holds the patched
+     * file, which happens when an earlier attempt wrote it but failed before the PR was opened.
+     */
+    static String target(String original, String branchText, UnifiedDiff.FilePatch patch, String branch) {
+        String patched = UnifiedDiff.apply(original, patch);
+        if (branchText.equals(patched)) {
+            return null;
+        }
+        if (branchText.equals(original)) {
+            return patched;
+        }
+        // The branch was created from an older base by an earlier attempt. Decide from the branch content itself.
+        boolean forward = UnifiedDiff.appliesTo(branchText, patch);
+        boolean backward = UnifiedDiff.appliesTo(branchText, UnifiedDiff.reverse(patch));
+        if (forward && !backward) {
+            return UnifiedDiff.apply(branchText, patch);
+        }
+        if (backward && !forward) {
+            return null;
+        }
+        throw new IllegalStateException("Branch " + branch + " has diverged for " + patch.path()
+                + "; delete the branch and retry");
+    }
+
+    private ContentFile getContent(int[] attempts, String repo, String path, String ref) {
+        return call(attempts, "github.get-content", () -> client.get()
+                .uri(contentsUri(repo, path) + "?ref={ref}", ref)
+                .retrieve().body(ContentFile.class));
+    }
+
+    private static String decode(ContentFile file) {
+        return new String(Base64.getMimeDecoder().decode(file.content()), StandardCharsets.UTF_8);
     }
 
     private void createBranch(int[] attempts, String repo, String branch, String sha) {

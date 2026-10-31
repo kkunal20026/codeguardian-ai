@@ -129,6 +129,12 @@ codehealth:
     repo-path: ${VALIDATION_REPO_PATH:}
     test-command: ${VALIDATION_TEST_COMMAND:mvn -q -B test}
     timeout-seconds: 600
+    # Local test runs execute model-written code. docker: throwaway container without secrets or host files.
+    # env: on the host with secrets stripped from the environment (weaker, for machines without Docker).
+    isolation: ${VALIDATION_ISOLATION:docker}
+    sandbox-image: ${VALIDATION_SANDBOX_IMAGE:maven:3.9-eclipse-temurin-25}
+    sandbox-network: ${VALIDATION_SANDBOX_NETWORK:bridge}   # none = no network; needs a warm cache volume
+    sandbox-cache-volume: ${VALIDATION_SANDBOX_CACHE:codehealth-m2-cache}
   ai:
     provider: ${AI_PROVIDER:template}          # template | spring-ai
   integrations:

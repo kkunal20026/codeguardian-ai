@@ -143,6 +143,32 @@ public final class UnifiedDiff {
         return String.join("\n", lines) + (trailingNewline ? "\n" : "");
     }
 
+    /**
+     * True when {@code apply} would succeed on {@code content}.
+     */
+    public static boolean appliesTo(String content, FilePatch patch) {
+        try {
+            apply(content, patch);
+            return true;
+        } catch (PatchException ex) {
+            return false;
+        }
+    }
+
+    /**
+     * The inverse patch: added lines become removed lines and vice versa. Applying it to patched content gives
+     * back the original, so it also tells whether a patch is already present in a file.
+     */
+    public static FilePatch reverse(FilePatch patch) {
+        List<Hunk> hunks = patch.hunks().stream()
+                .map(h -> new Hunk(h.oldStart(), h.lines().stream()
+                        .map(l -> l.startsWith("+") ? "-" + l.substring(1)
+                                : l.startsWith("-") ? "+" + l.substring(1) : l)
+                        .toList()))
+                .toList();
+        return new FilePatch(patch.path(), hunks);
+    }
+
     private static int locate(List<String> lines, List<String> expected, int anchor) {
         for (int distance = 0; distance <= 50; distance++) {
             for (int candidate : new int[]{anchor - distance, anchor + distance}) {

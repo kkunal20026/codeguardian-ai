@@ -29,7 +29,10 @@ export function ProposalPage({ id }: { id: number }) {
   if (error) return <ErrorBox message={error} />;
   if (!p) return <div className="text-sm text-ink-500">Loading…</div>;
 
-  const canDecide = hasRole('APPROVER') && (p.status === 'AWAITING_APPROVAL' || p.status === 'FAILED');
+  // HIGH risk is ticket-only by policy; the backend refuses to approve it, so the UI does not offer it.
+  const ticketOnly = p.riskLevel === 'HIGH';
+  const canDecide = hasRole('APPROVER') && !ticketOnly
+    && (p.status === 'AWAITING_APPROVAL' || p.status === 'FAILED');
   const llm = p.llmCalls.at(-1);
 
   return (
@@ -95,7 +98,9 @@ export function ProposalPage({ id }: { id: number }) {
               </div>
             ) : (
               <p className="text-sm text-ink-300">
-                {hasRole('APPROVER') ? 'No decision needed in this state.' : 'Requires the APPROVER role.'}
+                {ticketOnly
+                  ? 'HIGH risk: handled through a ticket only, never a pull request.'
+                  : hasRole('APPROVER') ? 'No decision needed in this state.' : 'Requires the APPROVER role.'}
               </p>
             )}
             {actionError && <div className="mt-3"><ErrorBox message={actionError} /></div>}

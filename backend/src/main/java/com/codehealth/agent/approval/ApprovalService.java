@@ -9,6 +9,7 @@ import com.codehealth.agent.domain.Enums.Decision;
 import com.codehealth.agent.domain.Enums.ExecutionStatus;
 import com.codehealth.agent.domain.Enums.FindingStatus;
 import com.codehealth.agent.domain.Enums.ProposalStatus;
+import com.codehealth.agent.domain.Enums.RiskLevel;
 import com.codehealth.agent.domain.Execution;
 import com.codehealth.agent.domain.FindingRepository;
 import com.codehealth.agent.domain.Proposal;
@@ -106,6 +107,12 @@ public class ApprovalService {
         return tx.execute(status -> {
             Proposal proposal = proposals.findById(proposalId)
                     .orElseThrow(() -> new NotFoundException("Proposal", proposalId));
+            if (decision == Decision.APPROVED && proposal.getRiskLevel() == RiskLevel.HIGH) {
+                // HIGH risk is ticket-only by policy. No approval, including a retry after a failed Jira call,
+                // may turn it into a pull request.
+                throw new IllegalStateException("Proposal " + proposalId
+                        + " is HIGH risk and can only be handled through a ticket");
+            }
             if (proposal.getStatus() != ProposalStatus.AWAITING_APPROVAL
                     && !(decision == Decision.APPROVED && proposal.getStatus() == ProposalStatus.FAILED)) {
                 throw new IllegalStateException("Proposal " + proposalId + " is " + proposal.getStatus());

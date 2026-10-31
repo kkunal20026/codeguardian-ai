@@ -26,7 +26,8 @@ public final class TestProperties {
                 new CodeHealthProperties.Flaky(20, 5),
                 new CodeHealthProperties.Policy(30, 0.7, 5,
                         List.of("pom.xml", "src/main/resources/", "db/migration/", "security/", ".github/")),
-                new CodeHealthProperties.Validation(mode, repoPath, "mvn -q -B test", 600),
+                new CodeHealthProperties.Validation(mode, repoPath, "mvn -q -B test", 600, "docker",
+                        "maven:3.9-eclipse-temurin-25", "bridge", "codehealth-m2-cache"),
                 new CodeHealthProperties.Ai("template"),
                 new CodeHealthProperties.Integrations(
                         new CodeHealthProperties.GitHub(false, "https://api.github.com", "o", "r", "", "main"),
