@@ -1,0 +1,4 @@
+# Loads clearly-labelled synthetic CI history so the dashboard has data before a real pipeline reports in.
+codehealth:
+  demo:
+    seed-synthetic-ci: true

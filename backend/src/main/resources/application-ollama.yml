@@ -1,0 +1,18 @@
+# Local, offline LLM. Run: ollama pull qwen2.5-coder:7b && ollama pull nomic-embed-text
+spring:
+  ai:
+    model:
+      chat: openai
+      embedding: openai
+    openai:
+      base-url: ${AI_BASE_URL:http://localhost:11434}
+      api-key: ${AI_API_KEY:ollama}
+      chat:
+        options:
+          model: ${AI_MODEL:qwen2.5-coder:7b}
+      embedding:
+        options:
+          model: ${AI_EMBEDDING_MODEL:nomic-embed-text}
+codehealth:
+  ai:
+    provider: spring-ai

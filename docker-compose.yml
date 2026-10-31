@@ -1,0 +1,94 @@
+# Local stack for Windows 11 (Docker Desktop + WSL2) or Linux/macOS.
+#   copy .env.example .env   (then set passwords)
+#   docker compose up -d                  -> SQL Server, Keycloak, Mailpit, backend, frontend
+#   docker compose --profile ollama up -d -> also a local LLM
+name: code-health-agent
+
+services:
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?set MSSQL_SA_PASSWORD in .env}
+      MSSQL_PID: Developer
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      retries: 20
+
+  mssql-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    depends_on:
+      mssql:
+        condition: service_healthy
+    environment:
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      DB_MIGRATION_PASSWORD: ${DB_MIGRATION_PASSWORD:?set DB_MIGRATION_PASSWORD in .env}
+    volumes:
+      - ./deploy/sql/init.sql:/init.sql:ro
+    entrypoint: >
+      /bin/bash -c "/opt/mssql-tools18/bin/sqlcmd -C -S mssql -U sa -P \"$$MSSQL_SA_PASSWORD\"
+      -v DB_PASSWORD=\"$$DB_PASSWORD\" -v DB_MIGRATION_PASSWORD=\"$$DB_MIGRATION_PASSWORD\" -i /init.sql"
+    restart: "no"
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.3
+    command: start-dev --import-realm
+    environment:
+      KC_HOSTNAME: http://localhost:9090
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set KEYCLOAK_ADMIN_PASSWORD in .env}
+    ports:
+      - "9090:8080"
+    volumes:
+      - ./deploy/keycloak/code-health-realm.json:/opt/keycloak/data/import/code-health-realm.json:ro
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+
+  ollama:
+    image: ollama/ollama:0.11.10
+    profiles: ["ollama"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+
+  backend:
+    build: ./backend
+    depends_on:
+      mssql-init:
+        condition: service_completed_successfully
+    env_file: .env
+    environment:
+      DB_URL: jdbc:sqlserver://mssql:1433;databaseName=codehealth;encrypt=true;trustServerCertificate=true
+      DB_USERNAME: codehealth_app
+      DB_MIGRATION_USERNAME: codehealth_owner
+      # Browser tokens are issued for localhost:9090; keys are fetched over the internal network.
+      KEYCLOAK_ISSUER: http://localhost:9090/realms/code-health
+      KEYCLOAK_JWKS_URI: http://keycloak:8080/realms/code-health/protocol/openid-connect/certs
+      MAIL_HOST: mailpit
+      VALIDATION_REPO_PATH: /repo
+    volumes:
+      - ./demo-repo:/repo:ro
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
+
+volumes:
+  mssql-data:
+  ollama-data:

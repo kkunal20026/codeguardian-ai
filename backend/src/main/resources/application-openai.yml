@@ -1,0 +1,9 @@
+# Real LLM through OpenAI (or any OpenAI-compatible endpoint, e.g. Azure OpenAI v1 endpoint).
+spring:
+  ai:
+    model:
+      chat: openai
+      embedding: openai
+codehealth:
+  ai:
+    provider: spring-ai

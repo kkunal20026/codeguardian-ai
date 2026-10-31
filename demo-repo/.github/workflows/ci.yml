@@ -1,0 +1,51 @@
+name: demo-order-service CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      # Do not stop on failures: every result must reach the agent. The job still fails below if tests failed.
+      - name: Run tests
+        run: mvn -B -q test -Dmaven.test.failure.ignore=true
+
+      - name: Report results to the code health agent
+        if: always()
+        env:
+          AGENT_URL: ${{ secrets.CODEHEALTH_AGENT_URL }}
+          CI_TOKEN: ${{ secrets.CODEHEALTH_CI_TOKEN }}
+        run: |
+          if [ -z "$AGENT_URL" ]; then echo "CODEHEALTH_AGENT_URL not set, skipping"; exit 0; fi
+          python3 - <<'PY'
+          import glob, json, os, urllib.request
+          body = {
+              "project": "demo-order-service",
+              "runId": f"{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}",
+              "commitSha": os.environ["GITHUB_SHA"],
+              "branch": os.environ["GITHUB_REF_NAME"],
+              "junitXml": [open(f, encoding="utf-8").read() for f in glob.glob("target/surefire-reports/TEST-*.xml")],
+          }
+          req = urllib.request.Request(os.environ["AGENT_URL"].rstrip("/") + "/api/v1/ci/runs",
+                                       data=json.dumps(body).encode(), method="POST",
+                                       headers={"Content-Type": "application/json", "X-CI-Token": os.environ["CI_TOKEN"]})
+          print(urllib.request.urlopen(req, timeout=30).read().decode())
+          PY
+
+      - name: Fail the job if any test failed
+        run: "! grep -l -E '<(failure|error) ' target/surefire-reports/TEST-*.xml"

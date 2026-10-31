@@ -1,0 +1,166 @@
+# All secrets come from environment variables (locally from .env, in Azure from Key Vault references).
+# Nothing in this file is a real credential.
+
+spring:
+  application:
+    name: code-health-agent
+  threads:
+    virtual:
+      enabled: true
+
+  datasource:
+    url: ${DB_URL:jdbc:sqlserver://localhost:1433;databaseName=codehealth;encrypt=true;trustServerCertificate=true}
+    username: ${DB_USERNAME:codehealth_app}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Flyway owns the schema; the Testcontainers integration test proves entities and tables agree.
+      ddl-auto: none
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+        type:
+          preferred_instant_jdbc_type: TIMESTAMP
+          prefer_nationalized_chars: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # Flyway runs with the owner login; the app login has no UPDATE/DELETE on audit_chain.
+    user: ${DB_MIGRATION_USERNAME:${DB_USERNAME:codehealth_app}}
+    password: ${DB_MIGRATION_PASSWORD:${DB_PASSWORD}}
+
+  ai:
+    model:
+      chat: ${AI_CHAT_PROVIDER:none}          # openai | none
+      embedding: ${AI_EMBEDDING_PROVIDER:none} # openai | none
+      image: none
+      audio:
+        speech: none
+        transcription: none
+      moderation: none
+    openai:
+      api-key: ${AI_API_KEY:not-set}
+      base-url: ${AI_BASE_URL:https://api.openai.com}
+      chat:
+        options:
+          model: ${AI_MODEL:gpt-4o-mini}
+          temperature: 0.1
+      embedding:
+        options:
+          model: ${AI_EMBEDDING_MODEL:text-embedding-3-small}
+
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+
+server:
+  port: 8080
+  error:
+    include-stacktrace: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+logging:
+  structured:
+    format:
+      console: ${LOG_FORMAT:ecs}
+  level:
+    root: INFO
+    com.codehealth: DEBUG
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+codehealth:
+  security:
+    mode: ${SECURITY_MODE:demo}               # demo | keycloak
+    allowed-origins: ${CORS_ORIGINS:http://localhost:5173}
+  agent:
+    schedule-enabled: ${AGENT_SCHEDULE_ENABLED:false}
+    cron: ${AGENT_CRON:0 */15 * * * *}
+    max-findings-per-cycle: 3
+  planner:
+    severity-weight: 0.4
+    flakiness-weight: 0.3
+    impact-weight: 0.2
+    recency-weight: 0.1
+    module-impact:
+      payments: 1.0
+      pricing: 0.8
+      default: 0.4
+  flaky:
+    window-runs: 20
+    min-runs: 5
+  policy:
+    max-auto-lines: 30
+    min-confidence: 0.7
+    required-green-runs: 5
+    high-risk-paths:
+      - pom.xml
+      - build.gradle
+      - src/main/resources/
+      - db/migration/
+      - security/
+      - Dockerfile
+      - .github/
+  validation:
+    mode: ${VALIDATION_MODE:static}           # static | local
+    repo-path: ${VALIDATION_REPO_PATH:}
+    test-command: ${VALIDATION_TEST_COMMAND:mvn -q -B test}
+    timeout-seconds: 600
+  ai:
+    provider: ${AI_PROVIDER:template}          # template | spring-ai
+  integrations:
+    github:
+      enabled: ${GITHUB_ENABLED:false}
+      api-url: https://api.github.com
+      owner: ${GITHUB_OWNER:}
+      repo: ${GITHUB_REPO:}
+      token: ${GITHUB_TOKEN:}
+      base-branch: main
+    jira:
+      enabled: ${JIRA_ENABLED:false}
+      base-url: ${JIRA_BASE_URL:}
+      email: ${JIRA_EMAIL:}
+      api-token: ${JIRA_API_TOKEN:}
+      project-key: ${JIRA_PROJECT_KEY:CH}
+    sonar:
+      enabled: ${SONAR_ENABLED:false}
+      base-url: ${SONAR_URL:http://localhost:9000}
+      token: ${SONAR_TOKEN:}
+      project-key: ${SONAR_PROJECT_KEY:demo-order-service}
+    middleware:
+      enabled: ${MIDDLEWARE_ENABLED:false}
+      base-url: ${MIDDLEWARE_URL:}
+      api-key: ${MIDDLEWARE_API_KEY:}
+    slack:
+      enabled: ${SLACK_ENABLED:false}
+      webhook-url: ${SLACK_WEBHOOK_URL:}
+    email:
+      enabled: ${EMAIL_ENABLED:false}
+      from: ${EMAIL_FROM:codehealth-agent@localhost}
+      to: ${EMAIL_TO:}
+    ci:
+      ingest-token: ${CI_INGEST_TOKEN:}
+  ui-base-url: ${UI_BASE_URL:http://localhost:5173}

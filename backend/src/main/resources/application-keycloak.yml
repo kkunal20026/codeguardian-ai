@@ -1,0 +1,11 @@
+codehealth:
+  security:
+    mode: keycloak
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER:http://localhost:9090/realms/code-health}
+          # Set when the backend reaches Keycloak on a different host name than the browser (Docker network).
+          jwk-set-uri: ${KEYCLOAK_JWKS_URI:http://localhost:9090/realms/code-health/protocol/openid-connect/certs}

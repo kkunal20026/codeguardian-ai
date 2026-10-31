@@ -1,0 +1,56 @@
+{
+  "realm": "code-health",
+  "enabled": true,
+  "sslRequired": "external",
+  "roles": {
+    "realm": [
+      { "name": "VIEWER", "description": "Read findings, proposals, metrics" },
+      { "name": "APPROVER", "description": "Approve or reject proposals" },
+      { "name": "ADMIN", "description": "Run the agent, view actuator" },
+      { "name": "AUDITOR", "description": "Read and verify the audit trail" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "code-health-ui",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["http://localhost:5173/*"],
+      "webOrigins": ["http://localhost:5173"],
+      "attributes": { "pkce.code.challenge.method": "S256" }
+    }
+  ],
+  "users": [
+    {
+      "username": "viewer",
+      "enabled": true,
+      "email": "viewer@example.com",
+      "emailVerified": true,
+      "firstName": "Vera",
+      "lastName": "Viewer",
+      "realmRoles": ["VIEWER"],
+      "credentials": [{ "type": "password", "value": "ChangeMe-OnFirstLogin1", "temporary": true }]
+    },
+    {
+      "username": "approver",
+      "enabled": true,
+      "email": "approver@example.com",
+      "emailVerified": true,
+      "firstName": "Alex",
+      "lastName": "Approver",
+      "realmRoles": ["VIEWER", "APPROVER"],
+      "credentials": [{ "type": "password", "value": "ChangeMe-OnFirstLogin1", "temporary": true }]
+    },
+    {
+      "username": "admin",
+      "enabled": true,
+      "email": "admin@example.com",
+      "emailVerified": true,
+      "firstName": "Ada",
+      "lastName": "Admin",
+      "realmRoles": ["VIEWER", "APPROVER", "ADMIN", "AUDITOR"],
+      "credentials": [{ "type": "password", "value": "ChangeMe-OnFirstLogin1", "temporary": true }]
+    }
+  ]
+}
