@@ -42,15 +42,28 @@ public class AuditTrail {
     @Transactional
     public AuditEntry append(String eventType, String entityType, Object entityId, String actor,
                              Map<String, ?> payload) {
+        // With autocommit off, the SQL Server JDBC driver runs in IMPLICIT_TRANSACTIONS mode: the server only opens
+        // the transaction at the first statement that touches a table. When an append is the first statement of a
+        // transaction (for example the start of an agent cycle), @@TRANCOUNT is still 0 and sp_getapplock with
+        // LockOwner = 'Transaction' fails with -999. Reading audit_chain first opens the transaction.
         Integer lockResult = jdbc.sql("""
                         SET NOCOUNT ON;
-                        DECLARE @r INT;
-                        EXEC @r = sp_getapplock @Resource = 'audit_chain', @LockMode = 'Exclusive',
-                                                @LockOwner = 'Transaction', @LockTimeout = 10000;
-                        SELECT @r;
+                        DECLARE @r INT, @seq BIGINT;
+                        IF @@TRANCOUNT = 0 SELECT TOP (1) @seq = seq FROM audit_chain;
+                        IF @@TRANCOUNT = 0
+                            SELECT -1000;
+                        ELSE
+                        BEGIN
+                            EXEC @r = sp_getapplock @Resource = 'audit_chain', @LockMode = 'Exclusive',
+                                                    @LockOwner = 'Transaction', @LockTimeout = 10000;
+                            SELECT @r;
+                        END
                         """)
                 .query(Integer.class)
                 .single();
+        if (lockResult != null && lockResult == -1000) {
+            throw new IllegalStateException("Could not acquire audit chain lock: no database transaction is active");
+        }
         if (lockResult == null || lockResult < 0) {
             throw new IllegalStateException("Could not acquire audit chain lock, result " + lockResult);
         }
