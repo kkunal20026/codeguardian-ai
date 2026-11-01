@@ -11,6 +11,10 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 /**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: Execution.java
+ *  Date: October 31, 2026
  * One external side effect (PR, ticket, middleware call). The unique idempotency key makes retries safe:
  * a second attempt with the same key reuses the recorded result instead of creating a duplicate.
  */

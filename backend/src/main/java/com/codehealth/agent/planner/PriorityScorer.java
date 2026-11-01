@@ -8,6 +8,10 @@ import java.time.Clock;
 import java.time.Duration;
 
 /**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: PriorityScorer.java
+ *  Date: October 31, 2026
  * priority = wS * severity + wF * flakinessRate + wI * businessImpact + wR * recency
  * <p>
  * All inputs are in [0,1]; weights come from configuration so the ranking is explainable and tunable.
@@ -18,8 +22,8 @@ public class PriorityScorer {
     private final CodeHealthProperties.Planner weights;
     private final Clock clock;
 
-    public PriorityScorer(CodeHealthProperties properties, Clock clock) {
-        this.weights = properties.planner();
+    public PriorityScorer(CodeHealthProperties codeHealthProperties, Clock clock) {
+        this.weights = codeHealthProperties.planner();
         this.clock = clock;
     }
 

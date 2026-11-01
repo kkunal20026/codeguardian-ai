@@ -9,6 +9,10 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 /**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: LlmInteraction.java
+ *  Date: October 31, 2026
  * Full record of one model call: exact prompts sent, raw text returned, token usage and latency.
  */
 @Entity

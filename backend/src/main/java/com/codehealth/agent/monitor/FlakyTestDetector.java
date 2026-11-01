@@ -24,6 +24,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: FlakyTestDetector.java
+ *  Date: October 31, 2026
  * A test is flaky when, for the same commit SHA, it both passed and failed. Same code, different result:
  * the cause is the test or its environment, not a code change. This is the definition used by most CI
  * analytics tools and avoids flagging tests that are simply broken.
@@ -33,19 +37,19 @@ public class FlakyTestDetector {
 
     private static final Logger log = LoggerFactory.getLogger(FlakyTestDetector.class);
 
-    private final CiRunRepository runs;
-    private final TestResultRepository results;
-    private final FindingRepository findings;
-    private final CodeHealthProperties properties;
-    private final AuditTrail audit;
+    private final CiRunRepository ciRunRepository;
+    private final TestResultRepository testResultRepository;
+    private final FindingRepository findingRepository;
+    private final CodeHealthProperties codeHealthProperties;
+    private final AuditTrail auditTrail;
 
-    public FlakyTestDetector(CiRunRepository runs, TestResultRepository results, FindingRepository findings,
-                             CodeHealthProperties properties, AuditTrail audit) {
-        this.runs = runs;
-        this.results = results;
-        this.findings = findings;
-        this.properties = properties;
-        this.audit = audit;
+    public FlakyTestDetector(CiRunRepository ciRunRepository, TestResultRepository testResultRepository, FindingRepository findingRepository,
+                             CodeHealthProperties codeHealthProperties, AuditTrail auditTrail) {
+        this.ciRunRepository = ciRunRepository;
+        this.testResultRepository = testResultRepository;
+        this.findingRepository = findingRepository;
+        this.codeHealthProperties = codeHealthProperties;
+        this.auditTrail = auditTrail;
     }
 
     public record FlakyStats(String testClass, String testName, int executions, int failures,
@@ -57,21 +61,17 @@ public class FlakyTestDetector {
 
     @Transactional
     public List<Finding> detect(String project) {
-        List<CiRun> window = runs.findByProjectOrderByStartedAtDesc(project).stream()
-                .limit(properties.flaky().windowRuns())
+        List<CiRun> window = ciRunRepository.findByProjectOrderByStartedAtDesc(project).stream()
+                .limit(codeHealthProperties.flaky().windowRuns())
                 .toList();
-        if (window.size() < properties.flaky().minRuns()) {
+        if (window.size() < codeHealthProperties.flaky().minRuns()) {
             log.debug("Only {} runs for {}, need {} before judging flakiness", window.size(), project,
-                    properties.flaky().minRuns());
+                    codeHealthProperties.flaky().minRuns());
             return List.of();
         }
 
-        List<FlakyStats> flaky = analyse(results.findForRuns(project, window.stream().map(CiRun::getId).toList()));
-        List<Finding> touched = new ArrayList<>();
-        for (FlakyStats stats : flaky) {
-            touched.add(upsertFinding(project, stats));
-        }
-        return touched;
+        List<FlakyStats> flaky = analyse(testResultRepository.findForRuns(project, window.stream().map(CiRun::getId).toList()));
+        return flaky.stream().map(stats -> upsertFinding(project, stats)).collect(Collectors.toList());
     }
 
     /**
@@ -82,54 +82,52 @@ public class FlakyTestDetector {
                 .filter(r -> r.getOutcome() != Enums.TestOutcome.SKIPPED)
                 .collect(Collectors.groupingBy(r -> r.getTestClass() + "#" + r.getTestName()));
 
-        List<FlakyStats> flaky = new ArrayList<>();
-        for (List<TestResult> executions : byTest.values()) {
+        List<FlakyStats> flakyStatsArrayList = new ArrayList<>();
+        byTest.values().forEach(executions -> {
             Map<String, Set<Enums.TestOutcome>> outcomesByCommit = new HashMap<>();
-            for (TestResult r : executions) {
-                outcomesByCommit.computeIfAbsent(r.getCiRun().getCommitSha(), k -> new HashSet<>()).add(r.getOutcome());
-            }
+            executions.forEach(r -> outcomesByCommit.computeIfAbsent(r.getCiRun().getCommitSha(), k -> new HashSet<>()).add(r.getOutcome()));
             int mixedCommits = (int) outcomesByCommit.values().stream().filter(s -> s.size() > 1).count();
             if (mixedCommits == 0) {
-                continue;
+                return;
             }
             List<TestResult> failures = executions.stream()
                     .filter(r -> r.getOutcome() == Enums.TestOutcome.FAILED)
                     .toList();
             TestResult first = executions.getFirst();
-            flaky.add(new FlakyStats(first.getTestClass(), first.getTestName(), executions.size(), failures.size(),
+            flakyStatsArrayList.add(new FlakyStats(first.getTestClass(), first.getTestName(), executions.size(), failures.size(),
                     mixedCommits, failures.isEmpty() ? null : failures.getLast().getFailureMessage()));
-        }
-        return flaky;
+        });
+        return flakyStatsArrayList;
     }
 
-    private Finding upsertFinding(String project, FlakyStats stats) {
-        String fingerprint = "flaky:" + project + ":" + stats.testClass() + "#" + stats.testName();
+    private Finding upsertFinding(String project, FlakyStats flakyStats) {
+        String fingerprint = "flaky:" + project + ":" + flakyStats.testClass() + "#" + flakyStats.testName();
         String details = """
                 Test %s#%s failed %d of %d runs (%.0f%%) in the last window.
                 It both passed and failed on %d commit(s) with identical code, so the failure is not caused by a code change.
                 Last failure message: %s
-                """.formatted(stats.testClass(), stats.testName(), stats.failures(), stats.executions(),
-                stats.flakinessRate() * 100, stats.commitsWithMixedResults(),
-                stats.lastFailure() == null ? "n/a" : stats.lastFailure());
+                """.formatted(flakyStats.testClass(), flakyStats.testName(), flakyStats.failures(), flakyStats.executions(),
+                flakyStats.flakinessRate() * 100, flakyStats.commitsWithMixedResults(),
+                flakyStats.lastFailure() == null ? "n/a" : flakyStats.lastFailure());
 
-        Finding finding = findings.findByFingerprint(fingerprint).orElseGet(() -> {
+        Finding finding = findingRepository.findByFingerprint(fingerprint).orElseGet(() -> {
             Finding created = new Finding(fingerprint, Enums.FindingSource.CI, Enums.FindingType.FLAKY_TEST,
-                    project, moduleOf(stats.testClass()), testPath(stats.testClass()),
-                    "Flaky test: " + simpleName(stats.testClass()) + "." + stats.testName(), details,
-                    stats.flakinessRate() >= 0.2 ? Enums.Severity.MAJOR : Enums.Severity.MINOR);
-            Finding saved = findings.save(created);
-            audit.append("FINDING_INGESTED", "FINDING", saved.getId(), Map.of(
+                    project, moduleOf(flakyStats.testClass()), testPath(flakyStats.testClass()),
+                    "Flaky test: " + simpleName(flakyStats.testClass()) + "." + flakyStats.testName(), details,
+                    flakyStats.flakinessRate() >= 0.2 ? Enums.Severity.MAJOR : Enums.Severity.MINOR);
+            Finding saved = findingRepository.save(created);
+            auditTrail.append("FINDING_INGESTED", "FINDING", saved.getId(), Map.of(
                     "fingerprint", fingerprint, "type", "FLAKY_TEST", "project", project));
-            log.info("New flaky test finding {} ({}%)", fingerprint, Math.round(stats.flakinessRate() * 100));
+            log.info("New flaky test finding {} ({}%)", fingerprint, Math.round(flakyStats.flakinessRate() * 100));
             return saved;
         });
-        finding.refresh(details, stats.flakinessRate());
+        finding.refresh(details, flakyStats.flakinessRate());
         return finding;
     }
 
     private String moduleOf(String testClass) {
         String lower = testClass.toLowerCase(Locale.ROOT);
-        return properties.planner().moduleImpact().keySet().stream()
+        return codeHealthProperties.planner().moduleImpact().keySet().stream()
                 .filter(module -> !"default".equals(module) && lower.contains(module))
                 .findFirst()
                 .orElse(null);

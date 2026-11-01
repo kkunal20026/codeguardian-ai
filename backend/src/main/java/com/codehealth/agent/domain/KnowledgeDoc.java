@@ -7,7 +7,12 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
-
+/**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: KnowledgeDoc.java
+ *  Date: October 31, 2026
+ */
 @Entity
 @Table(name = "knowledge_doc")
 public class KnowledgeDoc {

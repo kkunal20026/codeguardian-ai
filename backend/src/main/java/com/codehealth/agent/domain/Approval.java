@@ -9,7 +9,12 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
-
+/**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: Approval.java
+ *  Date: October 31, 2026
+ */
 @Entity
 @Table(name = "approval")
 public class Approval {

@@ -19,6 +19,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: SonarQubeCollector.java
+ *  Date: October 31, 2026
  * Pulls open issues from the SonarQube Web API ({@code /api/issues/search}). Disabled unless
  * {@code codehealth.integrations.sonar.enabled=true}.
  */
@@ -28,19 +32,19 @@ public class SonarQubeCollector {
     private static final Logger log = LoggerFactory.getLogger(SonarQubeCollector.class);
 
     private final CodeHealthProperties.Sonar sonar;
-    private final RestClient client;
-    private final FindingRepository findings;
-    private final AuditTrail audit;
+    private final RestClient restClient;
+    private final FindingRepository findingRepository;
+    private final AuditTrail auditTrail;
 
-    public SonarQubeCollector(CodeHealthProperties properties, RestClient.Builder builder,
-                              FindingRepository findings, AuditTrail audit) {
-        this.sonar = properties.integrations().sonar();
-        this.client = IntegrationHttp.from(builder)
+    public SonarQubeCollector(CodeHealthProperties codeHealthProperties, RestClient.Builder builder,
+                              FindingRepository findingRepository, AuditTrail auditTrail) {
+        this.sonar = codeHealthProperties.integrations().sonar();
+        this.restClient = IntegrationHttp.from(builder)
                 .baseUrl(sonar.baseUrl() == null ? "http://localhost:9000" : sonar.baseUrl())
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + sonar.token())
                 .build();
-        this.findings = findings;
-        this.audit = audit;
+        this.findingRepository = findingRepository;
+        this.auditTrail = auditTrail;
     }
 
     public boolean isEnabled() {
@@ -57,25 +61,25 @@ public class SonarQubeCollector {
         if (response == null || response.issues() == null) {
             return touched;
         }
-        for (SonarIssue issue : response.issues()) {
+        response.issues().forEach(issue -> {
             String fingerprint = "sonar:" + issue.key();
-            Finding finding = findings.findByFingerprint(fingerprint).orElseGet(() -> {
-                Finding saved = findings.save(new Finding(fingerprint, Enums.FindingSource.SONAR,
+            Finding finding = findingRepository.findByFingerprint(fingerprint).orElseGet(() -> {
+                Finding saved = findingRepository.save(new Finding(fingerprint, Enums.FindingSource.SONAR,
                         Enums.FindingType.SONAR_ISSUE, sonar.projectKey(), null, filePath(issue.component()),
                         issue.message(), "Rule " + issue.rule() + " at line " + issue.line(),
                         severity(issue.severity())));
-                audit.append("FINDING_INGESTED", "FINDING", saved.getId(),
+                auditTrail.append("FINDING_INGESTED", "FINDING", saved.getId(),
                         Map.of("fingerprint", fingerprint, "type", "SONAR_ISSUE", "rule", issue.rule()));
                 return saved;
             });
             touched.add(finding);
-        }
+        });
         log.info("Collected {} open Sonar issues for {}", touched.size(), sonar.projectKey());
         return touched;
     }
 
     private SonarIssues fetchIssues() {
-        return client.get()
+        return restClient.get()
                 .uri(uri -> uri.path("/api/issues/search")
                         .queryParam("componentKeys", sonar.projectKey())
                         .queryParam("resolved", "false")

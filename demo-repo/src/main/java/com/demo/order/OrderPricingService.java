@@ -6,7 +6,12 @@ import java.time.DayOfWeek;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
-
+/**
+ * Author: Kumar.Kunal
+ * Project: codeguardian-ai
+ * File: OrderPricingService.java
+ * Date: October 31, 2026
+ */
 public class OrderPricingService {
 
     private static final BigDecimal WEEKEND_DISCOUNT = new BigDecimal("0.90");

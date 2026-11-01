@@ -28,6 +28,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: ApprovalService.java
+ *  Date: October 31, 2026
  * Human approval loop. Decisions are short transactions; the external PR call runs between them so a slow
  * GitHub API never holds a database transaction open.
  */
@@ -37,46 +41,46 @@ public class ApprovalService {
     private static final Logger log = LoggerFactory.getLogger(ApprovalService.class);
     public static final String POLICY_ACTOR = "risk-policy";
 
-    private final ProposalRepository proposals;
-    private final FindingRepository findings;
-    private final ApprovalRepository approvals;
-    private final ExecutionService executor;
-    private final List<ApprovalNotifier> notifiers;
-    private final AuditTrail audit;
-    private final CodeHealthMetrics metrics;
-    private final TransactionTemplate tx;
+    private final ProposalRepository proposalRepository;
+    private final FindingRepository findingRepository;
+    private final ApprovalRepository approvalRepository;
+    private final ExecutionService executionService;
+    private final List<ApprovalNotifier> approvalNotifiers;
+    private final AuditTrail auditTrail;
+    private final CodeHealthMetrics codeHealthMetrics;
+    private final TransactionTemplate transactionTemplate;
     private final String uiBaseUrl;
 
-    public ApprovalService(ProposalRepository proposals, FindingRepository findings, ApprovalRepository approvals,
-                           ExecutionService executor, List<ApprovalNotifier> notifiers, AuditTrail audit,
-                           CodeHealthMetrics metrics, TransactionTemplate tx, CodeHealthProperties properties) {
-        this.proposals = proposals;
-        this.findings = findings;
-        this.approvals = approvals;
-        this.executor = executor;
-        this.notifiers = notifiers;
-        this.audit = audit;
-        this.metrics = metrics;
-        this.tx = tx;
+    public ApprovalService(ProposalRepository proposalRepository, FindingRepository findingRepository, ApprovalRepository approvalRepository,
+                           ExecutionService executionService, List<ApprovalNotifier> approvalNotifiers, AuditTrail auditTrail,
+                           CodeHealthMetrics codeHealthMetrics, TransactionTemplate transactionTemplate, CodeHealthProperties properties) {
+        this.proposalRepository = proposalRepository;
+        this.findingRepository = findingRepository;
+        this.approvalRepository = approvalRepository;
+        this.executionService = executionService;
+        this.approvalNotifiers = approvalNotifiers;
+        this.auditTrail = auditTrail;
+        this.codeHealthMetrics = codeHealthMetrics;
+        this.transactionTemplate = transactionTemplate;
         this.uiBaseUrl = properties.uiBaseUrl();
     }
 
     public void requestApproval(Proposal proposal) {
         String reviewUrl = uiBaseUrl + "/proposals/" + proposal.getId();
         List<String> notified = new ArrayList<>(List.of("UI"));
-        for (ApprovalNotifier notifier : notifiers) {
-            if (!notifier.isEnabled()) {
+        for (ApprovalNotifier approvalNotifier : approvalNotifiers) {
+            if (!approvalNotifier.isEnabled()) {
                 continue;
             }
             try {
-                notifier.notifyPending(proposal, reviewUrl);
-                notified.add(notifier.channel());
-            } catch (RuntimeException ex) {
-                log.warn("{} notification failed for proposal {}: {}", notifier.channel(), proposal.getId(),
-                        ex.getMessage());
+                approvalNotifier.notifyPending(proposal, reviewUrl);
+                notified.add(approvalNotifier.channel());
+            } catch (RuntimeException runtimeException) {
+                log.warn("{} notification failed for proposal {}: {}", approvalNotifier.channel(), proposal.getId(),
+                        runtimeException.getMessage());
             }
         }
-        tx.executeWithoutResult(s -> audit.append("APPROVAL_REQUESTED", "PROPOSAL", proposal.getId(), "agent",
+        transactionTemplate.executeWithoutResult(s -> auditTrail.append("APPROVAL_REQUESTED", "PROPOSAL", proposal.getId(), "agent",
                 Map.of("channels", notified, "riskLevel", proposal.getRiskLevel().name())));
     }
 
@@ -86,26 +90,26 @@ public class ApprovalService {
      */
     public Proposal autoApprove(Long proposalId) {
         decide(proposalId, POLICY_ACTOR, ApprovalChannel.POLICY, Decision.APPROVED, "Auto-approved by risk policy");
-        metrics.automatedFix();
+        codeHealthMetrics.automatedFix();
         return execute(proposalId);
     }
 
-    public Proposal approve(Long proposalId, String approver, String comment, ApprovalChannel channel) {
-        decide(proposalId, approver, channel, Decision.APPROVED, comment);
+    public Proposal approve(Long proposalId, String approver, String comment, ApprovalChannel approvalChannel) {
+        decide(proposalId, approver, approvalChannel, Decision.APPROVED, comment);
         return execute(proposalId);
     }
 
-    public Proposal reject(Long proposalId, String approver, String comment, ApprovalChannel channel) {
-        return decide(proposalId, approver, channel, Decision.REJECTED, comment);
+    public Proposal reject(Long proposalId, String approver, String comment, ApprovalChannel approvalChannel) {
+        return decide(proposalId, approver, approvalChannel, Decision.REJECTED, comment);
     }
 
-    private Proposal decide(Long proposalId, String approver, ApprovalChannel channel, Decision decision,
+    private Proposal decide(Long proposalId, String approver, ApprovalChannel approvalChannel, Decision decision,
                             String comment) {
         if (approver == null || approver.isBlank() || "agent".equals(approver)) {
             throw new IllegalArgumentException("A named approver is required");
         }
-        return tx.execute(status -> {
-            Proposal proposal = proposals.findById(proposalId)
+        return transactionTemplate.execute(status -> {
+            Proposal proposal = proposalRepository.findById(proposalId)
                     .orElseThrow(() -> new NotFoundException("Proposal", proposalId));
             if (decision == Decision.APPROVED && proposal.getRiskLevel() == RiskLevel.HIGH) {
                 // HIGH risk is ticket-only by policy. No approval, including a retry after a failed Jira call,
@@ -117,37 +121,37 @@ public class ApprovalService {
                     && !(decision == Decision.APPROVED && proposal.getStatus() == ProposalStatus.FAILED)) {
                 throw new IllegalStateException("Proposal " + proposalId + " is " + proposal.getStatus());
             }
-            approvals.save(new Approval(proposalId, approver, channel, decision, comment));
+            approvalRepository.save(new Approval(proposalId, approver, approvalChannel, decision, comment));
             proposal.transitionTo(decision == Decision.APPROVED ? ProposalStatus.APPROVED : ProposalStatus.REJECTED);
             if (decision == Decision.REJECTED) {
-                findings.findById(proposal.getFindingId()).ifPresent(f -> f.moveTo(FindingStatus.IGNORED));
+                findingRepository.findById(proposal.getFindingId()).ifPresent(f -> f.moveTo(FindingStatus.IGNORED));
             }
 
             Map<String, Object> payload = new HashMap<>();
             payload.put("decision", decision.name());
-            payload.put("channel", channel.name());
+            payload.put("approvalChannel", approvalChannel.name());
             payload.put("riskLevel", proposal.getRiskLevel().name());
             if (comment != null) {
                 payload.put("comment", comment);
             }
-            audit.append("APPROVAL_DECIDED", "PROPOSAL", proposalId, approver, payload);
-            log.info("Proposal {} {} by {} via {}", proposalId, decision, approver, channel);
+            auditTrail.append("APPROVAL_DECIDED", "PROPOSAL", proposalId, approver, payload);
+            log.info("Proposal {} {} by {} via {}", proposalId, decision, approver, approvalChannel);
             return proposal;
         });
     }
 
     private Proposal execute(Long proposalId) {
-        Proposal approved = proposals.findById(proposalId).orElseThrow();
-        Execution pr = executor.openPullRequest(approved);
+        Proposal proposalApproved = proposalRepository.findById(proposalId).orElseThrow();
+        Execution openPullRequestPr = executionService.openPullRequest(proposalApproved);
 
-        Proposal result = tx.execute(status -> {
-            Proposal proposal = proposals.findById(proposalId).orElseThrow();
-            proposal.transitionTo(pr.getStatus() == ExecutionStatus.FAILED
+        Proposal result = transactionTemplate.execute(status -> {
+            Proposal proposal = proposalRepository.findById(proposalId).orElseThrow();
+            proposal.transitionTo(openPullRequestPr.getStatus() == ExecutionStatus.FAILED
                     ? ProposalStatus.FAILED : ProposalStatus.EXECUTED);
             return proposal;
         });
         if (result.getStatus() == ProposalStatus.EXECUTED) {
-            executor.notifyMiddleware(result);
+            executionService.notifyMiddleware(result);
         }
         return result;
     }

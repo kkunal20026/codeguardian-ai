@@ -5,6 +5,10 @@ import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.stereotype.Component;
 
 /**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: CodeHealthMetrics.java
+ *  Date: October 31, 2026
  * Event counters exported to Prometheus. Rates (flaky rate, CI noise) are gauges in {@link MetricsService}.
  */
 @Component

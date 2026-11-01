@@ -1,6 +1,10 @@
 package com.codehealth.agent.generator;
 
 /**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: GeneratedFix.java
+ *  Date: October 31, 2026
  * Structured output requested from the model. Spring AI derives a JSON schema from this record and appends
  * format instructions to the prompt, then maps the response back into it.
  *

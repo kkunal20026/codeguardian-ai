@@ -8,6 +8,10 @@ import java.time.Instant;
 import java.util.List;
 
 /**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: CiIngestService.java
+ *  Date: October 31, 2026
  * Payload a CI pipeline posts after its test step: run metadata plus the raw JUnit XML report files.
  */
 public record CiRunReport(

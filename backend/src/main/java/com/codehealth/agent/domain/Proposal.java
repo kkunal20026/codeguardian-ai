@@ -14,7 +14,12 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.EnumSet;
 import java.util.Set;
-
+/**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: Proposal.java
+ *  Date: October 31, 2026
+ */
 @Entity
 @Table(name = "proposal")
 public class Proposal {

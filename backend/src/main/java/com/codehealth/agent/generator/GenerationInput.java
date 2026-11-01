@@ -5,6 +5,12 @@ import com.codehealth.agent.retrieval.KnowledgeRetriever.RetrievedDoc;
 
 import java.util.List;
 
+/**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: GenerationInput.java
+ *  Date: October 31, 2026
+ */
 public record GenerationInput(Finding finding, List<RetrievedDoc> context, String sourcePath, String sourceCode) {
 
     public boolean hasSource() {

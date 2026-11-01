@@ -13,19 +13,23 @@ import java.util.List;
 import java.util.Map;
 
 /**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: JiraClient.java
+ *  Date: October 31, 2026
  * Creates Jira Cloud issues through REST API v3 (description in Atlassian Document Format).
  */
 @Component
 public class JiraClient {
 
     private final CodeHealthProperties.Jira config;
-    private final RestClient client;
+    private final RestClient restClient;
 
     public JiraClient(CodeHealthProperties properties, RestClient.Builder builder) {
         this.config = properties.integrations().jira();
         String credentials = (config.email() == null ? "" : config.email()) + ":"
                 + (config.apiToken() == null ? "" : config.apiToken());
-        this.client = IntegrationHttp.from(builder)
+        this.restClient = IntegrationHttp.from(builder)
                 .baseUrl(config.baseUrl() == null || config.baseUrl().isBlank() ? "http://localhost" : config.baseUrl())
                 .defaultHeader(HttpHeaders.AUTHORIZATION,
                         "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8)))
@@ -52,7 +56,7 @@ public class JiraClient {
                                 "type", "paragraph",
                                 "content", List.of(Map.of("type", "text", "text", description)))))));
 
-        Retry.Outcome<CreatedIssue> outcome = Retry.call("jira.create-issue", () -> client.post()
+        Retry.Outcome<CreatedIssue> outcome = Retry.call("jira.create-issue", () -> restClient.post()
                 .uri("/rest/api/3/issue")
                 .body(body)
                 .retrieve()

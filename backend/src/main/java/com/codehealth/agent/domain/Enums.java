@@ -1,6 +1,10 @@
 package com.codehealth.agent.domain;
 
 /**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: Enums.java
+ *  Date: October 31, 2026
  * Holder for the small closed vocabularies used across the domain. Kept together so the state model is readable
  * in one place.
  */

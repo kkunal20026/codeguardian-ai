@@ -7,6 +7,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: CodeHealthProperties.java
+ *  Date: October 31, 2026
  * Typed view of every {@code codehealth.*} property. Immutable; bound once at startup.
  */
 @ConfigurationProperties(prefix = "codehealth")

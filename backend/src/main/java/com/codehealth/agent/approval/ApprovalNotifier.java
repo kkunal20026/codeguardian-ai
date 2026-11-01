@@ -3,6 +3,10 @@ package com.codehealth.agent.approval;
 import com.codehealth.agent.domain.Proposal;
 
 /**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: ApprovalNotifier.java
+ *  Date: October 31, 2026
  * A channel that tells reviewers a proposal is waiting. The decision itself is always made through the
  * authenticated API, so the approver identity comes from a verified token, not from a chat message.
  */

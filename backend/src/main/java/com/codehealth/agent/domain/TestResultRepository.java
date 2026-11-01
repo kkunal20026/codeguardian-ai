@@ -4,7 +4,12 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
-
+/**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: TestResultRepository.java
+ *  Date: October 31, 2026
+ */
 public interface TestResultRepository extends JpaRepository<TestResult, Long> {
 
     @Query("""

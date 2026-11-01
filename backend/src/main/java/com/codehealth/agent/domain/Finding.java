@@ -12,7 +12,12 @@ import jakarta.persistence.Version;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
-
+/**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: Finding.java
+ *  Date: October 31, 2026
+ */
 @Entity
 @Table(name = "finding")
 public class Finding {

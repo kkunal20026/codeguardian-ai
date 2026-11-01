@@ -15,6 +15,10 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: CorrelationIdFilter.java
+ *  Date: October 31, 2026
  * Puts a correlation id in the MDC so every structured log line of a request can be joined.
  */
 @Component
@@ -26,16 +30,16 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
     private static final Pattern SAFE = Pattern.compile("[A-Za-z0-9-]{8,64}");
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+    protected void doFilterInternal(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, FilterChain filterChain)
             throws ServletException, IOException {
-        String incoming = request.getHeader(HEADER);
+        String incoming = httpServletRequest.getHeader(HEADER);
         String correlationId = incoming != null && SAFE.matcher(incoming).matches()
                 ? incoming
                 : UUID.randomUUID().toString();
         MDC.put(MDC_KEY, correlationId);
-        response.setHeader(HEADER, correlationId);
+        httpServletResponse.setHeader(HEADER, correlationId);
         try {
-            chain.doFilter(request, response);
+            filterChain.doFilter(httpServletRequest, httpServletResponse);
         } finally {
             MDC.remove(MDC_KEY);
         }

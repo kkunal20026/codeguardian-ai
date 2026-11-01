@@ -7,6 +7,10 @@ import java.net.http.HttpClient;
 import java.time.Duration;
 
 /**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: IntegrationHttp.java
+ *  Date: November 1, 2026
  * Outbound HTTP for integrations (GitHub, Jira, Sonar, Slack, middleware): a copy of Boot's auto-configured
  * RestClient.Builder (keeps observation and message converters) with explicit timeouts.
  * The shared builder itself is never mutated, so Spring AI's clients are unaffected.
@@ -24,8 +28,8 @@ public final class IntegrationHttp {
                 .connectTimeout(CONNECT_TIMEOUT)
                 .followRedirects(HttpClient.Redirect.NORMAL)
                 .build();
-        JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(http);
-        factory.setReadTimeout(READ_TIMEOUT);
-        return bootBuilder.clone().requestFactory(factory);
+        JdkClientHttpRequestFactory jdkClientHttpRequestFactory = new JdkClientHttpRequestFactory(http);
+        jdkClientHttpRequestFactory.setReadTimeout(READ_TIMEOUT);
+        return bootBuilder.clone().requestFactory(jdkClientHttpRequestFactory);
     }
 }

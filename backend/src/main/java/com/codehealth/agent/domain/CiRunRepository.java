@@ -5,7 +5,12 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
-
+/**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: CiRunRepository.java
+ *  Date: October 31, 2026
+ */
 public interface CiRunRepository extends JpaRepository<CiRun, Long> {
 
     Optional<CiRun> findByProjectAndRunId(String project, String runId);

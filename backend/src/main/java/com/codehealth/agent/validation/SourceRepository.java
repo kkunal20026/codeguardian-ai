@@ -11,6 +11,10 @@ import java.nio.file.Path;
 import java.util.Optional;
 
 /**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: SourceRepository.java
+ *  Date: October 31, 2026
  * Read-only access to the local checkout of the monitored repository. Every path is resolved inside the
  * configured root; anything escaping it is refused.
  */
@@ -21,8 +25,8 @@ public class SourceRepository {
 
     private final Path root;
 
-    public SourceRepository(CodeHealthProperties properties) {
-        String configured = properties.validation().repoPath();
+    public SourceRepository(CodeHealthProperties codeHealthProperties) {
+        String configured = codeHealthProperties.validation().repoPath();
         this.root = configured == null || configured.isBlank() ? null : Path.of(configured).toAbsolutePath().normalize();
     }
 
@@ -44,8 +48,8 @@ public class SourceRepository {
                 return Optional.empty();
             }
             return Optional.of(Files.readString(file, StandardCharsets.UTF_8));
-        } catch (IOException ex) {
-            throw new UncheckedIOException(ex);
+        } catch (IOException ioException) {
+            throw new UncheckedIOException(ioException);
         }
     }
 

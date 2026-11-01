@@ -11,17 +11,21 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Posts to a Slack incoming webhook with a button that opens the review page.
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: EmailNotifier.java
+ *  Date: October 31, 2026
+ *  Posts to a Slack incoming webhook with a button that opens the review page.
  */
 @Component
 public class SlackNotifier implements ApprovalNotifier {
 
     private final CodeHealthProperties.Slack config;
-    private final RestClient client;
+    private final RestClient restClient;
 
     public SlackNotifier(CodeHealthProperties properties, RestClient.Builder builder) {
         this.config = properties.integrations().slack();
-        this.client = IntegrationHttp.from(builder).build();
+        this.restClient = IntegrationHttp.from(builder).build();
     }
 
     @Override
@@ -46,7 +50,7 @@ public class SlackNotifier implements ApprovalNotifier {
                                 "type", "button",
                                 "text", Map.of("type", "plain_text", "text", "Review and approve"),
                                 "url", reviewUrl)))));
-        Retry.call("slack.webhook", () -> client.post().uri(config.webhookUrl()).body(message)
+        Retry.call("slack.webhook", () -> restClient.post().uri(config.webhookUrl()).body(message)
                 .retrieve().toBodilessEntity());
     }
 }

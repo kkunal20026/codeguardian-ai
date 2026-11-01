@@ -6,8 +6,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.IntStream;
 
 /**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: UnifiedDiff.java
+ *  Date: October 31, 2026
  * Minimal, strict unified diff model: parse, apply and write. Used to check LLM-generated patches before any
  * human or tool sees them, and to produce patches from the template generator.
  */
@@ -63,13 +68,13 @@ public final class UnifiedDiff {
                 hunkLines = null;
                 continue;
             }
-            Matcher m = HUNK.matcher(line);
-            if (m.matches()) {
+            Matcher matcher = HUNK.matcher(line);
+            if (matcher.matches()) {
                 if (currentPath == null) {
                     throw new PatchException("Hunk before file header");
                 }
                 closeHunk(hunks, hunkLines, hunkOldStart);
-                hunkOldStart = Integer.parseInt(m.group(1));
+                hunkOldStart = Integer.parseInt(matcher.group(1));
                 hunkLines = new ArrayList<>();
                 continue;
             }
@@ -119,24 +124,22 @@ public final class UnifiedDiff {
      * Applies hunks with exact context matching. A small search window tolerates wrong line numbers, which LLMs
      * often get wrong, but the context itself must match exactly.
      */
-    public static String apply(String original, FilePatch patch) {
+    public static String apply(String original, FilePatch filePatch) {
         boolean trailingNewline = original.endsWith("\n");
         List<String> lines = new ArrayList<>(List.of(original.replace("\r\n", "\n").split("\n", -1)));
         if (trailingNewline) {
             lines.removeLast();
         }
         int offset = 0;
-        for (Hunk hunk : patch.hunks()) {
+        for (Hunk hunk : filePatch.hunks()) {
             List<String> expected = hunk.lines().stream().filter(l -> !l.startsWith("+")).map(l -> l.substring(1)).toList();
             List<String> replacement = hunk.lines().stream().filter(l -> !l.startsWith("-")).map(l -> l.substring(1)).toList();
             int anchor = Math.max(0, hunk.oldStart() - 1 + offset);
             int at = locate(lines, expected, anchor);
             if (at < 0) {
-                throw new PatchException("Hunk at line " + hunk.oldStart() + " does not match " + patch.path());
+                throw new PatchException("Hunk at line " + hunk.oldStart() + " does not match " + filePatch.path());
             }
-            for (int i = 0; i < expected.size(); i++) {
-                lines.remove(at);
-            }
+            IntStream.range(0, expected.size()).map(i -> at).forEach(lines::remove);
             lines.addAll(at, replacement);
             offset += replacement.size() - expected.size();
         }
@@ -150,7 +153,7 @@ public final class UnifiedDiff {
         try {
             apply(content, patch);
             return true;
-        } catch (PatchException ex) {
+        } catch (PatchException patchException) {
             return false;
         }
     }
@@ -170,26 +173,14 @@ public final class UnifiedDiff {
     }
 
     private static int locate(List<String> lines, List<String> expected, int anchor) {
-        for (int distance = 0; distance <= 50; distance++) {
-            for (int candidate : new int[]{anchor - distance, anchor + distance}) {
-                if (candidate >= 0 && matchesAt(lines, expected, candidate)) {
-                    return candidate;
-                }
-            }
-        }
-        return -1;
+        return IntStream.rangeClosed(0, 50).flatMap(distance -> IntStream.of(anchor - distance, anchor + distance)).filter(candidate -> candidate >= 0 && matchesAt(lines, expected, candidate)).findFirst().orElse(-1);
     }
 
     private static boolean matchesAt(List<String> lines, List<String> expected, int at) {
         if (at + expected.size() > lines.size()) {
             return false;
         }
-        for (int i = 0; i < expected.size(); i++) {
-            if (!lines.get(at + i).stripTrailing().equals(expected.get(i).stripTrailing())) {
-                return false;
-            }
-        }
-        return true;
+        return IntStream.range(0, expected.size()).allMatch(i -> lines.get(at + i).stripTrailing().equals(expected.get(i).stripTrailing()));
     }
 
     // ---------------------------------------------------------------- write

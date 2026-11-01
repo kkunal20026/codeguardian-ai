@@ -28,6 +28,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 /**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: PatchValidator.java
+ *  Date: October 31, 2026
  * Validator step.
  * <ul>
  *   <li>static: the patch must parse and apply cleanly to the current source. Tests are not run, so the
@@ -45,12 +49,12 @@ public class PatchValidator {
     private static final int MAX_LOG_CHARS = 20_000;
     private static final ExecutorService OUTPUT_READERS = Executors.newVirtualThreadPerTaskExecutor();
 
-    private final CodeHealthProperties properties;
-    private final SourceRepository source;
+    private final CodeHealthProperties codeHealthProperties;
+    private final SourceRepository sourceRepository;
 
-    public PatchValidator(CodeHealthProperties properties, SourceRepository source) {
-        this.properties = properties;
-        this.source = source;
+    public PatchValidator(CodeHealthProperties codeHealthProperties, SourceRepository sourceRepository) {
+        this.codeHealthProperties = codeHealthProperties;
+        this.sourceRepository = sourceRepository;
     }
 
     public record Result(ValidationStatus status, boolean applies, int greenRuns, String log,
@@ -61,10 +65,10 @@ public class PatchValidator {
         List<UnifiedDiff.FilePatch> patches;
         try {
             patches = UnifiedDiff.parse(patchDiff);
-        } catch (UnifiedDiff.PatchException ex) {
-            return new Result(ValidationStatus.FAILED, false, 0, "Patch rejected: " + ex.getMessage(), List.of());
+        } catch (UnifiedDiff.PatchException patchException) {
+            return new Result(ValidationStatus.FAILED, false, 0, "Patch rejected: " + patchException.getMessage(), List.of());
         }
-        if (!source.isConfigured()) {
+        if (!sourceRepository.isConfigured()) {
             return new Result(ValidationStatus.NOT_EXECUTED, false, 0,
                     "Patch parsed. No repository configured (codehealth.validation.repo-path), so it was not applied.",
                     patches);
@@ -72,18 +76,18 @@ public class PatchValidator {
 
         StringBuilder report = new StringBuilder();
         try {
-            for (UnifiedDiff.FilePatch patch : patches) {
-                String original = source.read(patch.path())
+            patches.forEach(patch -> {
+                String original = sourceRepository.read(patch.path())
                         .orElseThrow(() -> new UnifiedDiff.PatchException("File not found: " + patch.path()));
                 UnifiedDiff.apply(original, patch);
                 report.append("Applies cleanly: ").append(patch.path()).append('\n');
-            }
-        } catch (UnifiedDiff.PatchException ex) {
-            return new Result(ValidationStatus.FAILED, false, 0, report + "Patch does not apply: " + ex.getMessage(),
+            });
+        } catch (UnifiedDiff.PatchException patchException) {
+            return new Result(ValidationStatus.FAILED, false, 0, report + "Patch does not apply: " + patchException.getMessage(),
                     patches);
         }
 
-        if (!properties.validation().isLocal()) {
+        if (!codeHealthProperties.validation().isLocal()) {
             report.append("Static mode: tests not executed.");
             return new Result(ValidationStatus.NOT_EXECUTED, true, 0, report.toString(), patches);
         }
@@ -91,11 +95,11 @@ public class PatchValidator {
     }
 
     private Result runTests(List<UnifiedDiff.FilePatch> patches, String testClassName, StringBuilder report) {
-        int required = properties.policy().requiredGreenRuns();
+        int required = codeHealthProperties.policy().requiredGreenRuns();
         Path workDir = null;
         try {
             workDir = Files.createTempDirectory("codehealth-validate-");
-            copyTree(source.root(), workDir);
+            copyTree(sourceRepository.root(), workDir);
             for (UnifiedDiff.FilePatch patch : patches) {
                 Path file = workDir.resolve(patch.path()).normalize();
                 if (!file.startsWith(workDir)) {
@@ -117,9 +121,9 @@ public class PatchValidator {
                 green++;
             }
             return new Result(ValidationStatus.PASSED, true, green, truncate(report), patches);
-        } catch (Exception ex) {
-            log.warn("Local validation error: {}", ex.getMessage());
-            report.append("Validation error: ").append(ex.getMessage());
+        } catch (Exception exception) {
+            log.warn("Local validation error: {}", exception.getMessage());
+            report.append("Validation error: ").append(exception.getMessage());
             return new Result(ValidationStatus.FAILED, true, 0, truncate(report), patches);
         } finally {
             deleteQuietly(workDir);
@@ -153,17 +157,17 @@ public class PatchValidator {
 
     private String testCommand(String testClassName) {
         String testFilter = testClassName == null ? "" : " -Dtest=" + testClassName.replaceAll("[^A-Za-z0-9_.#]", "");
-        return properties.validation().testCommand() + testFilter;
+        return codeHealthProperties.validation().testCommand() + testFilter;
     }
 
     private ProcessResult execute(Path workDir, String testClassName) throws IOException, InterruptedException {
         String command = testCommand(testClassName);
-        if (properties.validation().isDockerIsolation()) {
+        if (codeHealthProperties.validation().isDockerIsolation()) {
             return executeInContainer(workDir, command);
         }
         boolean windows = System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win");
         List<String> shell = windows ? List.of("cmd.exe", "/c", command) : List.of("sh", "-c", command);
-        return run(shell, workDir, properties.validation().timeoutSeconds());
+        return run(shell, workDir, codeHealthProperties.validation().timeoutSeconds());
     }
 
     /**
@@ -173,9 +177,9 @@ public class PatchValidator {
      */
     private ProcessResult executeInContainer(Path workDir, String command) throws IOException, InterruptedException {
         String name = "codehealth-validate-" + UUID.randomUUID();
-        int timeout = properties.validation().timeoutSeconds();
+        int timeout = codeHealthProperties.validation().timeoutSeconds();
         try {
-            ProcessResult created = run(dockerCreate(name, properties.validation(), command), null, 120);
+            ProcessResult created = run(dockerCreate(name, codeHealthProperties.validation(), command), null, 120);
             if (created.exitCode() != 0) {
                 return new ProcessResult(created.exitCode(), "docker create failed (is Docker running?): "
                         + created.output());
@@ -189,8 +193,8 @@ public class PatchValidator {
         } finally {
             try {
                 run(List.of("docker", "rm", "--force", name), null, 60);
-            } catch (IOException | RuntimeException ex) {
-                log.warn("Could not remove validation container {}: {}", name, ex.getMessage());
+            } catch (IOException | RuntimeException exception) {
+                log.warn("Could not remove validation container {}: {}", name, exception.getMessage());
             }
         }
     }
@@ -228,8 +232,8 @@ public class PatchValidator {
         CompletableFuture<String> output = CompletableFuture.supplyAsync(() -> {
             try {
                 return new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            } catch (IOException ex) {
-                return "Could not read output: " + ex.getMessage();
+            } catch (IOException ioException) {
+                return "Could not read output: " + ioException.getMessage();
             }
         }, OUTPUT_READERS);
         if (!process.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
@@ -265,8 +269,8 @@ public class PatchValidator {
         }
         try (var paths = Files.walk(dir)) {
             paths.sorted((a, b) -> b.getNameCount() - a.getNameCount()).forEach(p -> p.toFile().delete());
-        } catch (IOException ex) {
-            log.debug("Could not delete {}: {}", dir, ex.getMessage());
+        } catch (IOException ioException) {
+            log.debug("Could not delete {}: {}", dir, ioException.getMessage());
         }
     }
 

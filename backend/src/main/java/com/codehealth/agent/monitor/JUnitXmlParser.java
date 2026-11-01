@@ -13,8 +13,14 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: JUnitXmlParser.java
+ *  Date: October 31, 2026
  * Parses Surefire/Failsafe and Gradle JUnit XML reports. External entities and DTDs are disabled (XXE safe),
  * because the XML arrives over the network from CI.
  */
@@ -27,16 +33,11 @@ public class JUnitXmlParser {
 
     public List<ParsedTest> parse(String xml) {
         try {
-            Document doc = newSecureBuilder().parse(new InputSource(new StringReader(xml)));
-            NodeList cases = doc.getElementsByTagName("testcase");
-            List<ParsedTest> tests = new ArrayList<>(cases.getLength());
-            for (int i = 0; i < cases.getLength(); i++) {
-                Element testCase = (Element) cases.item(i);
-                tests.add(toParsedTest(testCase));
-            }
-            return tests;
-        } catch (Exception ex) {
-            throw new IllegalArgumentException("Invalid JUnit XML report: " + ex.getMessage(), ex);
+            Document document = newSecureBuilder().parse(new InputSource(new StringReader(xml)));
+            NodeList nodeList = document.getElementsByTagName("testcase");
+            return IntStream.range(0, nodeList.getLength()).mapToObj(i -> (Element) nodeList.item(i)).map(JUnitXmlParser::toParsedTest).collect(Collectors.toCollection(() -> new ArrayList<>(nodeList.getLength())));
+        } catch (Exception exception) {
+            throw new IllegalArgumentException("Invalid JUnit XML report: " + exception.getMessage(), exception);
         }
     }
 
@@ -71,21 +72,21 @@ public class JUnitXmlParser {
         }
         try {
             return Math.round(Double.parseDouble(value.replace(",", "")) * 1000);
-        } catch (NumberFormatException ex) {
+        } catch (NumberFormatException numberFormatException) {
             return 0;
         }
     }
 
     private static DocumentBuilder newSecureBuilder() throws Exception {
-        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-        factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
-        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-        factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
-        factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-        factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
-        factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
-        factory.setXIncludeAware(false);
-        factory.setExpandEntityReferences(false);
-        return factory.newDocumentBuilder();
+        DocumentBuilderFactory documentBuilderFactory = DocumentBuilderFactory.newInstance();
+        documentBuilderFactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+        documentBuilderFactory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+        documentBuilderFactory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+        documentBuilderFactory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+        documentBuilderFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+        documentBuilderFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+        documentBuilderFactory.setXIncludeAware(false);
+        documentBuilderFactory.setExpandEntityReferences(false);
+        return documentBuilderFactory.newDocumentBuilder();
     }
 }

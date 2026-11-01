@@ -13,6 +13,10 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: KeycloakRoleConverter.java
+ *  Date: October 31, 2026
  * Maps Keycloak realm roles to Spring authorities and uses preferred_username as the principal name,
  * so the approver recorded in the audit trail is a readable, verified identity.
  */

@@ -21,6 +21,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: ExecutionService.java
+ *  Date: October 31, 2026
  * Executor step. Each side effect is keyed by target and proposal id. If a record with that key already
  * succeeded, the stored result is returned and nothing is called again.
  * When an integration is not configured the step is recorded as DRY_RUN with no external reference, so
@@ -31,27 +35,27 @@ public class ExecutionService {
 
     private static final Logger log = LoggerFactory.getLogger(ExecutionService.class);
 
-    private final ExecutionRepository executions;
-    private final GitHubClient github;
-    private final JiraClient jira;
-    private final MiddlewareClient middleware;
-    private final AuditTrail audit;
+    private final ExecutionRepository executionRepository;
+    private final GitHubClient gitHubClient;
+    private final JiraClient jiraClient;
+    private final MiddlewareClient middlewareClient;
+    private final AuditTrail auditTrail;
 
-    public ExecutionService(ExecutionRepository executions, GitHubClient github, JiraClient jira,
-                            MiddlewareClient middleware, AuditTrail audit) {
-        this.executions = executions;
-        this.github = github;
-        this.jira = jira;
-        this.middleware = middleware;
-        this.audit = audit;
+    public ExecutionService(ExecutionRepository executionRepository, GitHubClient gitHubClient, JiraClient jiraClient,
+                            MiddlewareClient middlewareClient, AuditTrail auditTrail) {
+        this.executionRepository = executionRepository;
+        this.gitHubClient = gitHubClient;
+        this.jiraClient = jiraClient;
+        this.middlewareClient = middlewareClient;
+        this.auditTrail = auditTrail;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Execution openPullRequest(Proposal proposal) {
-        return run(proposal, ExecutionTarget.GITHUB_PR, github.isEnabled(), () -> {
+        return run(proposal, ExecutionTarget.GITHUB_PR, gitHubClient.isEnabled(), () -> {
             List<String> labels = new ArrayList<>(List.of("code-health-agent"));
             labels.add(proposal.getRiskLevel() == RiskLevel.LOW ? "auto-low-risk" : "human-approved");
-            GitHubClient.PullRequest pr = github.openPullRequest("code-health/proposal-" + proposal.getId(),
+            GitHubClient.PullRequest pr = gitHubClient.openPullRequest("code-health/proposal-" + proposal.getId(),
                     proposal.getTitle(), prBody(proposal), proposal.getPatchDiff(), labels);
             return new Result(pr.url(), pr.attempts());
         });
@@ -59,7 +63,7 @@ public class ExecutionService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Execution createTicket(Proposal proposal, Finding finding) {
-        return run(proposal, ExecutionTarget.JIRA_TICKET, jira.isEnabled(), () -> {
+        return run(proposal, ExecutionTarget.JIRA_TICKET, jiraClient.isEnabled(), () -> {
             String description = """
                     %s
 
@@ -68,7 +72,7 @@ public class ExecutionService {
                     Finding: %s
                     """.formatted(proposal.getSummary(), proposal.getRootCause(), proposal.getRiskReasons(),
                     finding.getDetails());
-            JiraClient.Ticket ticket = jira.createIssue(proposal.getTitle(), description,
+            JiraClient.Ticket ticket = jiraClient.createIssue(proposal.getTitle(), description,
                     List.of("code-health-agent", finding.getType().name().toLowerCase()));
             return new Result(ticket.url(), ticket.attempts());
         });
@@ -77,13 +81,13 @@ public class ExecutionService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Execution notifyMiddleware(Proposal proposal) {
         String key = key(ExecutionTarget.MIDDLEWARE, proposal);
-        return run(proposal, ExecutionTarget.MIDDLEWARE, middleware.isEnabled(), () -> {
+        return run(proposal, ExecutionTarget.MIDDLEWARE, middlewareClient.isEnabled(), () -> {
             Map<String, Object> event = new HashMap<>();
             event.put("proposalId", proposal.getId());
             event.put("findingId", proposal.getFindingId());
             event.put("status", proposal.getStatus().name());
             event.put("riskLevel", proposal.getRiskLevel().name());
-            int attempts = middleware.publish(key, event);
+            int attempts = middlewareClient.publish(key, event);
             return new Result(null, attempts);
         });
     }
@@ -98,8 +102,8 @@ public class ExecutionService {
 
     private Execution run(Proposal proposal, ExecutionTarget target, boolean enabled, Action action) {
         String key = key(target, proposal);
-        Execution execution = executions.findByIdempotencyKey(key)
-                .orElseGet(() -> executions.save(new Execution(proposal.getId(), key, target)));
+        Execution execution = executionRepository.findByIdempotencyKey(key)
+                .orElseGet(() -> executionRepository.save(new Execution(proposal.getId(), key, target)));
         if (execution.isDone()) {
             log.info("{} already done ({}), not repeating", key, execution.getStatus());
             return execution;
@@ -111,10 +115,10 @@ public class ExecutionService {
             try {
                 Result result = action.perform();
                 execution.complete(ExecutionStatus.SUCCEEDED, result.externalRef(), result.attempts(), null);
-            } catch (Retry.RetryExhaustedException ex) {
-                execution.complete(ExecutionStatus.FAILED, null, ex.attempts(), ex.getMessage());
-            } catch (RuntimeException ex) {
-                execution.complete(ExecutionStatus.FAILED, null, 1, ex.getMessage());
+            } catch (Retry.RetryExhaustedException retryExhaustedException) {
+                execution.complete(ExecutionStatus.FAILED, null, retryExhaustedException.attempts(), retryExhaustedException.getMessage());
+            } catch (RuntimeException runtimeException) {
+                execution.complete(ExecutionStatus.FAILED, null, 1, runtimeException.getMessage());
             }
         }
 
@@ -129,7 +133,7 @@ public class ExecutionService {
         if (execution.getLastError() != null) {
             payload.put("error", execution.getLastError());
         }
-        audit.append("EXECUTION_" + execution.getStatus().name(), "PROPOSAL", proposal.getId(), "agent", payload);
+        auditTrail.append("EXECUTION_" + execution.getStatus().name(), "PROPOSAL", proposal.getId(), "agent", payload);
         log.info("{} for proposal {} finished with {}", target, proposal.getId(), execution.getStatus());
         return execution;
     }

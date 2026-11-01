@@ -23,6 +23,10 @@ import java.util.Set;
 import java.util.stream.IntStream;
 
 /**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: KnowledgeRetriever.java
+ *  Date: October 31, 2026
  * Retrieval for RAG over the engineering knowledge base stored in SQL Server.
  * <ul>
  *   <li>With an embedding model configured: cosine similarity over stored embeddings (semantic).</li>

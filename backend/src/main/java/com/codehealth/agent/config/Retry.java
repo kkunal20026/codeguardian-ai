@@ -9,6 +9,10 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
 
 /**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: Retry.java
+ *  Date: November 1, 2026
  * Retry with exponential backoff and full jitter for outbound calls.
  * <p>
  * Client errors (4xx) are not retried: repeating a bad request or a missing permission never helps,
@@ -37,16 +41,15 @@ public final class Retry {
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
                 return new Outcome<>(action.get(), attempt);
-            } catch (HttpClientErrorException ex) {
-                throw ex;
-            } catch (RuntimeException ex) {
-                last = ex;
+            } catch (HttpClientErrorException httpClientErrorException) {
+                throw httpClientErrorException;
+            } catch (RuntimeException runtimeException) {
+                last = runtimeException;
                 if (attempt == maxAttempts) {
                     break;
                 }
                 long delayMs = backoffMillis(attempt, initialDelay);
-                log.warn("{} failed on attempt {}/{}: {}. Retrying in {} ms", operation, attempt, maxAttempts,
-                        ex.getMessage(), delayMs);
+                log.warn("{} failed on attempt {}/{}: {}. Retrying in {} ms", operation, attempt, maxAttempts, runtimeException.getMessage(), delayMs);
                 sleep(delayMs);
             }
         }
@@ -65,9 +68,9 @@ public final class Retry {
     private static void sleep(long millis) {
         try {
             Thread.sleep(millis);
-        } catch (InterruptedException ie) {
+        } catch (InterruptedException interruptedException) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("Interrupted during retry backoff", ie);
+            throw new IllegalStateException("Interrupted during retry backoff", interruptedException);
         }
     }
 
@@ -75,9 +78,9 @@ public final class Retry {
 
         private final int attempts;
 
-        RetryExhaustedException(String operation, int attempts, Throwable cause) {
+        RetryExhaustedException(String operation, int attempts, Throwable throwableCause) {
             super(operation + " failed after " + attempts + " attempts: "
-                    + (cause == null ? "unknown" : cause.getMessage()), cause);
+                    + (throwableCause == null ? "unknown" : throwableCause.getMessage()), throwableCause);
             this.attempts = attempts;
         }
 

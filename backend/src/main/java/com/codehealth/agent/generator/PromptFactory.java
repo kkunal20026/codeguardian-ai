@@ -7,6 +7,10 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: PromptFactory.java
+ *  Date: October 31, 2026
  * Builds the exact prompts sent to the model. Kept in one place so the audit trail shows precisely what the
  * model saw, and so prompt changes are reviewable in Git.
  */
@@ -25,16 +29,16 @@ public class PromptFactory {
             - Set confidence honestly. Below 0.7 means a human must decide.
             """;
 
-    public String userPrompt(GenerationInput input) {
-        String knowledge = input.context().isEmpty()
+    public String userPrompt(GenerationInput generationInput) {
+        String knowledge = generationInput.context().isEmpty()
                 ? "(none)"
-                : input.context().stream()
+                : generationInput.context().stream()
                 .map(RetrievedDoc::content)
                 .map(c -> "- " + c)
                 .collect(Collectors.joining("\n"));
 
-        String source = input.hasSource()
-                ? "File: %s\n```java\n%s\n```".formatted(input.sourcePath(), withLineNumbers(input.sourceCode()))
+        String source = generationInput.hasSource()
+                ? "File: %s\n```java\n%s\n```".formatted(generationInput.sourcePath(), withLineNumbers(generationInput.sourceCode()))
                 : "Source code is not available. Do not invent a patch; return an empty patchDiff.";
 
         return """
@@ -54,8 +58,8 @@ public class PromptFactory {
                 Produce: root cause, a short summary for a ticket, an explanation for the reviewer,
                 a unified diff patch, a pull request title and a Markdown pull request description
                 with sections Root cause, Change, Risk, Verification.
-                """.formatted(input.finding().getType(), input.finding().getProject(), input.finding().getTitle(),
-                input.finding().getDetails(), knowledge, source);
+                """.formatted(generationInput.finding().getType(), generationInput.finding().getProject(), generationInput.finding().getTitle(),
+                generationInput.finding().getDetails(), knowledge, source);
     }
 
     private static String withLineNumbers(String code) {

@@ -25,6 +25,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: MetricsService.java
+ *  Date: October 31, 2026
  * Computes the dashboard metrics from real stored data.
  * <p>
  * CI noise: a failed run is "noise" when every failing test in it is a known flaky test, meaning the
@@ -34,19 +38,19 @@ import java.util.stream.Collectors;
 @Service
 public class MetricsService {
 
-    private final CiRunRepository runs;
-    private final ProposalRepository proposals;
-    private final ApprovalRepository approvals;
-    private final LlmInteractionRepository llmCalls;
+    private final CiRunRepository ciRunRepository;
+    private final ProposalRepository proposalRepository;
+    private final ApprovalRepository approvalRepository;
+    private final LlmInteractionRepository llmInteractionRepository;
     private final CodeHealthProperties.Flaky flaky;
-    private final AtomicReference<MetricsReport> cached = new AtomicReference<>();
+    private final AtomicReference<MetricsReport> metricsReportAtomicReferenceCached = new AtomicReference<>();
 
-    public MetricsService(CiRunRepository runs, ProposalRepository proposals, ApprovalRepository approvals,
-                          LlmInteractionRepository llmCalls, CodeHealthProperties properties, MeterRegistry registry) {
-        this.runs = runs;
-        this.proposals = proposals;
-        this.approvals = approvals;
-        this.llmCalls = llmCalls;
+    public MetricsService(CiRunRepository ciRunRepository, ProposalRepository proposalRepository, ApprovalRepository approvalRepository,
+                          LlmInteractionRepository llmInteractionRepository, CodeHealthProperties properties, MeterRegistry registry) {
+        this.ciRunRepository = ciRunRepository;
+        this.proposalRepository = proposalRepository;
+        this.approvalRepository = approvalRepository;
+        this.llmInteractionRepository = llmInteractionRepository;
         this.flaky = properties.flaky();
 
         Gauge.builder("codehealth.flaky.rate", this, s -> s.snapshot().flakyTestRate())
@@ -68,8 +72,8 @@ public class MetricsService {
      * Gauges read the last computed report; they never hit the database on a Prometheus scrape.
      */
     private MetricsReport snapshot() {
-        MetricsReport report = cached.get();
-        return report != null ? report : EMPTY;
+        MetricsReport metricsReport = metricsReportAtomicReferenceCached.get();
+        return metricsReport != null ? metricsReport : EMPTY;
     }
 
     @Scheduled(fixedDelayString = "PT1M", initialDelayString = "PT30S")
@@ -80,7 +84,7 @@ public class MetricsService {
 
     @Transactional(readOnly = true)
     public MetricsReport refresh() {
-        List<CiRun> allRuns = runs.findAllByOrderByStartedAtAsc();
+        List<CiRun> allRuns = ciRunRepository.findAllByOrderByStartedAtAsc();
         List<TestResult> allResults = allRuns.stream().flatMap(r -> r.getResults().stream()).toList();
 
         Set<String> flakyTests = FlakyTestDetector.analyse(allResults).stream()
@@ -96,12 +100,12 @@ public class MetricsService {
 
         MetricsReport.CiNoise noise = ciNoise(allRuns, flakyTests);
 
-        List<Proposal> allProposals = proposals.findAll();
-        long autoFixes = approvals.findAll().stream()
+        List<Proposal> allProposals = proposalRepository.findAll();
+        long autoFixes = approvalRepository.findAll().stream()
                 .filter(a -> a.getChannel() == Enums.ApprovalChannel.POLICY)
                 .count();
-        long approved = approvals.findAll().stream().filter(a -> a.getDecision() == Enums.Decision.APPROVED).count();
-        long rejected = approvals.findAll().stream().filter(a -> a.getDecision() == Enums.Decision.REJECTED).count();
+        long approved = approvalRepository.findAll().stream().filter(a -> a.getDecision() == Enums.Decision.APPROVED).count();
+        long rejected = approvalRepository.findAll().stream().filter(a -> a.getDecision() == Enums.Decision.REJECTED).count();
         Double falsePositive = approved + rejected == 0 ? null : (double) rejected / (approved + rejected);
 
         long synthetic = allRuns.stream().filter(CiRun::isSynthetic).count();
@@ -109,16 +113,16 @@ public class MetricsService {
                 ? "All CI runs were reported by a real pipeline."
                 : synthetic + " of " + allRuns.size() + " CI runs are synthetic demo data (marked in the database).";
 
-        MetricsReport report = new MetricsReport(flakyRate, noise, autoFixes, allProposals.size(),
+        MetricsReport metricsReport = new MetricsReport(flakyRate, noise, autoFixes, allProposals.size(),
                 allProposals.stream().filter(p -> p.getStatus() == Enums.ProposalStatus.AWAITING_APPROVAL).count(),
-                falsePositive, llmCalls.countBySuccessFalse(), allRuns.size(), synthetic, note);
-        cached.set(report);
-        return report;
+                falsePositive, llmInteractionRepository.countBySuccessFalse(), allRuns.size(), synthetic, note);
+        metricsReportAtomicReferenceCached.set(metricsReport);
+        return metricsReport;
     }
 
     private MetricsReport.CiNoise ciNoise(List<CiRun> allRuns, Set<String> flakyTests) {
         double overall = noiseRate(allRuns, flakyTests);
-        Instant split = proposals.findAll().stream()
+        Instant split = proposalRepository.findAll().stream()
                 .filter(p -> p.getExecutedAt() != null && p.getStatus() == Enums.ProposalStatus.EXECUTED)
                 .map(Proposal::getExecutedAt)
                 .min(Comparator.naturalOrder())

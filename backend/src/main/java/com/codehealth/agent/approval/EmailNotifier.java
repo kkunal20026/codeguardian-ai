@@ -6,16 +6,21 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Component;
-
+/**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: EmailNotifier.java
+ *  Date: October 31, 2026
+ */
 @Component
 public class EmailNotifier implements ApprovalNotifier {
 
     private final CodeHealthProperties.Email config;
-    private final JavaMailSender mailSender;
+    private final JavaMailSender javaMailSender;
 
-    public EmailNotifier(CodeHealthProperties properties, ObjectProvider<JavaMailSender> mailSender) {
+    public EmailNotifier(CodeHealthProperties properties, ObjectProvider<JavaMailSender> javaMailSender) {
         this.config = properties.integrations().email();
-        this.mailSender = mailSender.getIfAvailable();
+        this.javaMailSender = javaMailSender.getIfAvailable();
     }
 
     @Override
@@ -25,16 +30,16 @@ public class EmailNotifier implements ApprovalNotifier {
 
     @Override
     public boolean isEnabled() {
-        return config.enabled() && mailSender != null && config.to() != null && !config.to().isBlank();
+        return config.enabled() && javaMailSender != null && config.to() != null && !config.to().isBlank();
     }
 
     @Override
     public void notifyPending(Proposal proposal, String reviewUrl) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setFrom(config.from());
-        message.setTo(config.to().split("\\s*,\\s*"));
-        message.setSubject("[Code Health] Review needed: " + proposal.getTitle());
-        message.setText("""
+        SimpleMailMessage simpleMailMessage = new SimpleMailMessage();
+        simpleMailMessage.setFrom(config.from());
+        simpleMailMessage.setTo(config.to().split("\\s*,\\s*"));
+        simpleMailMessage.setSubject("[Code Health] Review needed: " + proposal.getTitle());
+        simpleMailMessage.setText("""
                 A code health fix is waiting for your review.
 
                 Title: %s
@@ -47,6 +52,6 @@ public class EmailNotifier implements ApprovalNotifier {
                 Review and approve: %s
                 """.formatted(proposal.getTitle(), proposal.getRiskLevel(), proposal.getRiskReasons(),
                 proposal.getSummary(), reviewUrl));
-        mailSender.send(message);
+        javaMailSender.send(simpleMailMessage);
     }
 }

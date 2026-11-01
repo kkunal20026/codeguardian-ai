@@ -9,7 +9,12 @@ import java.util.concurrent.CompletableFuture;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-
+/**
+ * Author: Kumar.Kunal
+ * Project: codeguardian-ai
+ * File: OrderPricingServiceTest.java
+ * Date: October 31, 2026
+ */
 class OrderPricingServiceTest {
 
     private final OrderPricingService service = new OrderPricingService();

@@ -9,6 +9,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: TemplateFixGenerator.java
+ *  Date: October 31, 2026
  * Deterministic, rule-based generator. Used when no LLM is configured and as the fallback when the LLM call
  * fails. It only knows one safe rewrite (replace Thread.sleep before an async assertion with a bounded wait on the
  * future) and is honest about it: low confidence, and no patch when the rule does not match.
@@ -21,12 +25,12 @@ public class TemplateFixGenerator implements FixGenerator {
     private static final Pattern SLEEP_LINE = Pattern.compile("^([ \\t]*)Thread\\.sleep\\(\\s*\\d+L?\\s*\\);[ \\t]*$",
             Pattern.MULTILINE);
 
-    private final PromptFactory prompts;
-    private final LlmCallRecorder recorder;
+    private final PromptFactory promptFactory;
+    private final LlmCallRecorder llmCallRecorder;
 
-    public TemplateFixGenerator(PromptFactory prompts, LlmCallRecorder recorder) {
-        this.prompts = prompts;
-        this.recorder = recorder;
+    public TemplateFixGenerator(PromptFactory promptFactory, LlmCallRecorder llmCallRecorder) {
+        this.promptFactory = promptFactory;
+        this.llmCallRecorder = llmCallRecorder;
     }
 
     @Override
@@ -35,24 +39,24 @@ public class TemplateFixGenerator implements FixGenerator {
     }
 
     @Override
-    public GeneratedFix generate(GenerationInput input) {
+    public GeneratedFix generate(GenerationInput generationInput) {
         long start = System.nanoTime();
-        GeneratedFix fix = build(input);
-        recorder.record(new LlmInteraction(input.finding().getId(), "FIX_GENERATION", "template", "rules-v1",
-                "(no model: deterministic rules)", prompts.userPrompt(input), fix.toString(), null, null,
+        GeneratedFix fix = build(generationInput);
+        llmCallRecorder.record(new LlmInteraction(generationInput.finding().getId(), "FIX_GENERATION", "template", "rules-v1",
+                "(no model: deterministic rules)", promptFactory.userPrompt(generationInput), fix.toString(), null, null,
                 (System.nanoTime() - start) / 1_000_000, true, null));
         return fix;
     }
 
-    GeneratedFix build(GenerationInput input) {
-        if (input.finding().getType() != Enums.FindingType.FLAKY_TEST || !input.hasSource()) {
-            return noPatch(input, "No source available or not a flaky test; a human should investigate.");
+    GeneratedFix build(GenerationInput generationInput) {
+        if (generationInput.finding().getType() != Enums.FindingType.FLAKY_TEST || !generationInput.hasSource()) {
+            return noPatch(generationInput, "No source available or not a flaky test; a human should investigate.");
         }
-        String code = input.sourceCode();
+        String code = generationInput.sourceCode();
         Matcher future = FUTURE_VAR.matcher(code);
         Matcher sleep = SLEEP_LINE.matcher(code);
         if (!future.find() || !sleep.find()) {
-            return noPatch(input, "The test does not match a known safe rewrite.");
+            return noPatch(generationInput, "The test does not match a known safe rewrite.");
         }
 
         String variable = future.group(1);
@@ -60,16 +64,16 @@ public class TemplateFixGenerator implements FixGenerator {
         String replacement = indent + variable + ".get(5, java.util.concurrent.TimeUnit.SECONDS); "
                 + "// wait for the async result instead of a fixed sleep";
         String patched = code.substring(0, sleep.start()) + replacement + code.substring(sleep.end());
-        String diff = UnifiedDiff.write(input.sourcePath(), code, patched);
+        String diff = UnifiedDiff.write(generationInput.sourcePath(), code, patched);
 
         return new GeneratedFix(
                 "The test waits a fixed time with Thread.sleep before asserting on an asynchronous result. "
                         + "When the async work takes longer than the sleep, the assertion runs too early.",
-                input.finding().getTitle() + ": fixed sleep races with async completion.",
+                generationInput.finding().getTitle() + ": fixed sleep races with async completion.",
                 "Replace the fixed sleep with a bounded wait on `" + variable + "` (5 s timeout). The test now "
                         + "waits exactly as long as the work takes and still fails fast if it hangs.",
                 diff,
-                "Fix flaky " + input.finding().getTitle().replace("Flaky test: ", ""),
+                "Fix flaky " + generationInput.finding().getTitle().replace("Flaky test: ", ""),
                 """
                         ## Root cause
                         `Thread.sleep` gives the async price calculation a fixed time window. Under CI load the work \
@@ -87,8 +91,8 @@ public class TemplateFixGenerator implements FixGenerator {
                 0.75);
     }
 
-    private static GeneratedFix noPatch(GenerationInput input, String reason) {
-        return new GeneratedFix("Not determined automatically.", input.finding().getTitle(), reason, "",
-                "Investigate " + input.finding().getTitle(), reason, 0.2);
+    private static GeneratedFix noPatch(GenerationInput generationInput, String reason) {
+        return new GeneratedFix("Not determined automatically.", generationInput.finding().getTitle(), reason, "",
+                "Investigate " + generationInput.finding().getTitle(), reason, 0.2);
     }
 }

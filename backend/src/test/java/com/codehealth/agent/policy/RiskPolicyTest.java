@@ -20,16 +20,16 @@ class RiskPolicyTest {
 
     @Test
     void lowOnlyForProvenSmallConfidentTestChange() {
-        assertThat(policy.evaluate(testOnly(0.9, ValidationStatus.PASSED, 5, 2)).level()).isEqualTo(RiskLevel.LOW);
+        assertThat(policy.evaluate(testOnly(0.9, ValidationStatus.PASSED, 5, 2)).riskLevel()).isEqualTo(RiskLevel.LOW);
     }
 
     @Test
     void untestedOrUnconfidentPatchNeedsHuman() {
-        assertThat(policy.evaluate(testOnly(0.9, ValidationStatus.NOT_EXECUTED, 0, 2)).level())
+        assertThat(policy.evaluate(testOnly(0.9, ValidationStatus.NOT_EXECUTED, 0, 2)).riskLevel())
                 .isEqualTo(RiskLevel.MEDIUM);
-        assertThat(policy.evaluate(testOnly(0.5, ValidationStatus.PASSED, 5, 2)).level()).isEqualTo(RiskLevel.MEDIUM);
-        assertThat(policy.evaluate(testOnly(0.9, ValidationStatus.PASSED, 4, 2)).level()).isEqualTo(RiskLevel.MEDIUM);
-        assertThat(policy.evaluate(testOnly(0.9, ValidationStatus.PASSED, 5, 31)).level()).isEqualTo(RiskLevel.MEDIUM);
+        assertThat(policy.evaluate(testOnly(0.5, ValidationStatus.PASSED, 5, 2)).riskLevel()).isEqualTo(RiskLevel.MEDIUM);
+        assertThat(policy.evaluate(testOnly(0.9, ValidationStatus.PASSED, 4, 2)).riskLevel()).isEqualTo(RiskLevel.MEDIUM);
+        assertThat(policy.evaluate(testOnly(0.9, ValidationStatus.PASSED, 5, 31)).riskLevel()).isEqualTo(RiskLevel.MEDIUM);
     }
 
     @Test
@@ -37,16 +37,16 @@ class RiskPolicyTest {
         RiskPolicy.Input input = new RiskPolicy.Input(true, true, List.of("src/main/java/com/demo/Foo.java"), 2, 0.99,
                 ValidationStatus.PASSED, 5);
         RiskPolicy.Decision decision = policy.evaluate(input);
-        assertThat(decision.level()).isEqualTo(RiskLevel.MEDIUM);
+        assertThat(decision.riskLevel()).isEqualTo(RiskLevel.MEDIUM);
         assertThat(decision.reasons()).contains("Changes production code");
     }
 
     @Test
     void highRiskPathsFailedValidationAndMissingPatchGoToTicket() {
         assertThat(policy.evaluate(new RiskPolicy.Input(true, true, List.of("pom.xml"), 1, 0.99,
-                ValidationStatus.PASSED, 5)).level()).isEqualTo(RiskLevel.HIGH);
-        assertThat(policy.evaluate(testOnly(0.99, ValidationStatus.FAILED, 2, 2)).level()).isEqualTo(RiskLevel.HIGH);
+                ValidationStatus.PASSED, 5)).riskLevel()).isEqualTo(RiskLevel.HIGH);
+        assertThat(policy.evaluate(testOnly(0.99, ValidationStatus.FAILED, 2, 2)).riskLevel()).isEqualTo(RiskLevel.HIGH);
         assertThat(policy.evaluate(new RiskPolicy.Input(false, false, List.of(), 0, 0.99,
-                ValidationStatus.NOT_EXECUTED, 0)).level()).isEqualTo(RiskLevel.HIGH);
+                ValidationStatus.NOT_EXECUTED, 0)).riskLevel()).isEqualTo(RiskLevel.HIGH);
     }
 }

@@ -11,7 +11,12 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-
+/**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: CiRun.java
+ *  Date: October 31, 2026
+ */
 @Entity
 @Table(name = "ci_run")
 public class CiRun {

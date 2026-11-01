@@ -10,6 +10,10 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: MonitorService.java
+ *  Date: October 31, 2026
  * Monitor step of the agent loop: refresh every finding source.
  */
 @Service
@@ -17,28 +21,28 @@ public class MonitorService {
 
     private static final Logger log = LoggerFactory.getLogger(MonitorService.class);
 
-    private final CiRunRepository runs;
+    private final CiRunRepository ciRunRepository;
     private final FlakyTestDetector flakyDetector;
-    private final SonarQubeCollector sonar;
+    private final SonarQubeCollector sonarQubeCollector;
 
-    public MonitorService(CiRunRepository runs, FlakyTestDetector flakyDetector, SonarQubeCollector sonar) {
-        this.runs = runs;
+    public MonitorService(CiRunRepository ciRunRepository, FlakyTestDetector flakyDetector, SonarQubeCollector sonarQubeCollector) {
+        this.ciRunRepository = ciRunRepository;
         this.flakyDetector = flakyDetector;
-        this.sonar = sonar;
+        this.sonarQubeCollector = sonarQubeCollector;
     }
 
     public int refresh() {
         Set<String> projects = new LinkedHashSet<>();
-        runs.findAll().stream().map(CiRun::getProject).forEach(projects::add);
+        ciRunRepository.findAll().stream().map(CiRun::getProject).forEach(projects::add);
         int count = 0;
         for (String project : projects) {
             count += flakyDetector.detect(project).size();
         }
-        if (sonar.isEnabled()) {
+        if (sonarQubeCollector.isEnabled()) {
             try {
-                count += sonar.collect().size();
-            } catch (RuntimeException ex) {
-                log.warn("SonarQube collection failed after retries: {}", ex.getMessage());
+                count += sonarQubeCollector.collect().size();
+            } catch (RuntimeException runtimeException) {
+                log.warn("SonarQube collection failed after retries: {}", runtimeException.getMessage());
             }
         }
         log.info("Monitor refreshed {} findings across {} projects", count, projects.size());

@@ -42,9 +42,13 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
+ * Author: Kumar.Kunal
+ * Project: codeguardian-ai
+ * File: AgentOrchestrator.java
+ * Date: October 31, 2026
  * The agent loop: monitor -> plan -> retrieve -> generate -> validate -> risk policy -> route
  * (auto PR / human approval / ticket) -> audit. Each finding is processed independently, so one failure
- * never blocks the rest of the cycle.
+ *  never blocks the rest of the cycle.
  */
 @Service
 public class AgentOrchestrator {
@@ -181,17 +185,17 @@ public class AgentOrchestrator {
             Proposal p = proposals.findById(proposal.getId()).orElseThrow();
             p.recordDiffStats(lines, String.join(",", touched));
             p.recordValidation(validation.status(), validation.log());
-            p.assignRisk(decision.level(), String.join("; ", decision.reasons()));
+            p.assignRisk(decision.riskLevel(), String.join("; ", decision.reasons()));
             audit.append("VALIDATION_COMPLETED", "PROPOSAL", p.getId(), "agent", Map.of(
                     "status", validation.status().name(), "applies", validation.applies(),
                     "greenRuns", validation.greenRuns()));
             audit.append("RISK_ASSESSED", "PROPOSAL", p.getId(), "agent", Map.of(
-                    "riskLevel", decision.level().name(), "reasons", decision.reasons(),
+                    "riskLevel", decision.riskLevel().name(), "reasons", decision.reasons(),
                     "linesChanged", lines, "touchedFiles", touched));
         });
 
         // 6. Route
-        Proposal routed = switch (decision.level()) {
+        Proposal routed = switch (decision.riskLevel()) {
             case LOW -> approvals.autoApprove(proposal.getId());
             case MEDIUM -> {
                 Proposal pending = proposals.findById(proposal.getId()).orElseThrow();
@@ -201,8 +205,8 @@ public class AgentOrchestrator {
             case HIGH -> ticketOnly(proposal.getId(), finding);
         };
         log.info("Finding {} -> proposal {} risk {} status {}", finding.getId(), routed.getId(),
-                decision.level(), routed.getStatus());
-        return new ProposalOutcome(routed.getId(), finding.getId(), routed.getTitle(), decision.level(),
+                decision.riskLevel(), routed.getStatus());
+        return new ProposalOutcome(routed.getId(), finding.getId(), routed.getTitle(), decision.riskLevel(),
                 routed.getStatus(), generated.generatedBy());
     }
 

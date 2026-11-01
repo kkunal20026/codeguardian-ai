@@ -14,6 +14,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
+ *  Author: Kumar.Kunal
+ *  Project: codeguardian-ai
+ *  File: PlannerService.java
+ *  Date: October 31, 2026
  * Planner step: score every open finding and return the ones the agent should work on now.
  */
 @Service
@@ -21,37 +25,37 @@ public class PlannerService {
 
     private static final Logger log = LoggerFactory.getLogger(PlannerService.class);
 
-    private final FindingRepository findings;
-    private final PriorityScorer scorer;
-    private final AuditTrail audit;
+    private final FindingRepository findingRepository;
+    private final PriorityScorer priorityScorer;
+    private final AuditTrail auditTrail;
 
-    public PlannerService(FindingRepository findings, PriorityScorer scorer, AuditTrail audit) {
-        this.findings = findings;
-        this.scorer = scorer;
-        this.audit = audit;
+    public PlannerService(FindingRepository findingRepository, PriorityScorer priorityScorer, AuditTrail auditTrail) {
+        this.findingRepository = findingRepository;
+        this.priorityScorer = priorityScorer;
+        this.auditTrail = auditTrail;
     }
 
     @Transactional
     public List<Finding> plan(int limit) {
-        List<Finding> open = findings.findByStatus(Enums.FindingStatus.NEW);
-        for (Finding finding : open) {
-            PriorityScorer.Score score = scorer.score(finding);
+        List<Finding> open = findingRepository.findByStatus(Enums.FindingStatus.NEW);
+        open.forEach(finding -> {
+            PriorityScorer.Score score = priorityScorer.score(finding);
             finding.prioritise(score.total());
-        }
+        });
         List<Finding> selected = open.stream()
                 .sorted(Comparator.comparing(Finding::getPriorityScore).reversed())
                 .limit(limit)
                 .toList();
 
-        for (Finding finding : selected) {
-            PriorityScorer.Score score = scorer.score(finding);
-            audit.append("FINDING_PRIORITISED", "FINDING", finding.getId(), Map.of(
+        selected.forEach(finding -> {
+            PriorityScorer.Score score = priorityScorer.score(finding);
+            auditTrail.append("FINDING_PRIORITISED", "FINDING", finding.getId(), Map.of(
                     "priority", score.total(),
                     "severity", score.severity(),
                     "flakiness", score.flakiness(),
                     "impact", score.impact(),
                     "recency", score.recency()));
-        }
+        });
         log.info("Planner selected {} of {} open findings", selected.size(), open.size());
         return selected;
     }
